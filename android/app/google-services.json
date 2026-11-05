@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "221688035966",
+    "project_id": "ems-app-ea702",
+    "storage_bucket": "ems-app-ea702.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:221688035966:android:50f747230496c26d03f62f",
+        "android_client_info": {
+          "package_name": "com.neosolution.ems"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDV6-rfORNNXLHXWCh2FwRMAf1Vp-cJ5KA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
