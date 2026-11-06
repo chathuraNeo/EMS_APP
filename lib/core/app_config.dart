@@ -270,6 +270,15 @@ class AppConfig {
     return UserRole.unknown;
   }
 
+  static String dashboardUrlForRole(UserRole role) {
+    return switch (role) {
+      UserRole.cashOwner => cashOwnerDashboardUrl,
+      UserRole.manager => managerDashboardUrl,
+      UserRole.member => memberDashboardUrl,
+      UserRole.unknown => userDashboardUrl,
+    };
+  }
+
   static String? tabPageForIndex(
     int index, {
     UserRole role = UserRole.unknown,

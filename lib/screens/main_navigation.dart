@@ -133,6 +133,8 @@ class _MainNavigationState extends State<MainNavigation> {
     if (index < 0 || index >= items.length) return;
     final item = items[index];
 
+    final isSameTab = (_currentIndex == index);
+
     setState(() {
       _currentIndex = index;
       if (!item.isNotification && !item.isMore) {
@@ -146,7 +148,11 @@ class _MainNavigationState extends State<MainNavigation> {
     if (item.isNotification) {
       PushNotificationService.instance.requestInboxRefresh();
     } else if (!item.isMore && item.sectionKey.isNotEmpty) {
-      _webKey.currentState?.openSiteSection(item.sectionKey);
+      if (isSameTab) {
+        _webKey.currentState?.reload();
+      } else {
+        _webKey.currentState?.openSiteSection(item.sectionKey, refreshData: true);
+      }
     }
   }
 
@@ -162,7 +168,7 @@ class _MainNavigationState extends State<MainNavigation> {
       }
       _paymentListVisible = sectionKey.contains('payment');
     });
-    _webKey.currentState?.openSiteSection(sectionKey);
+    _webKey.currentState?.openSiteSection(sectionKey, refreshData: true);
   }
 
   void _onPaymentListVisibleChanged(bool visible) {

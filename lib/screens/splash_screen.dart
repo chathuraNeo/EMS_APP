@@ -29,6 +29,7 @@ class _SplashScreenState extends State<SplashScreen>
   late final Widget _activeDestination;
   bool _navigated = false;
   bool _overlayVisible = true;
+  bool _overlayFading = false;
   bool _webReady = false;
   bool _waitingForWeb = false;
   Timer? _maxWaitTimer;
@@ -96,7 +97,15 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     setState(() {
-      _overlayVisible = false;
+      _overlayFading = true;
+    });
+
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        setState(() {
+          _overlayVisible = false;
+        });
+      }
     });
   }
 
@@ -127,13 +136,19 @@ class _SplashScreenState extends State<SplashScreen>
             ),
             if (_overlayVisible)
               Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    _onWebReady();
-                    _controller.forward();
-                  },
-                  child: LayoutBuilder(
+                child: IgnorePointer(
+                  ignoring: _overlayFading,
+                  child: AnimatedOpacity(
+                    opacity: _overlayFading ? 0.0 : 1.0,
+                    duration: const Duration(milliseconds: 380),
+                    curve: Curves.easeOut,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        _onWebReady();
+                        _controller.forward();
+                      },
+                      child: LayoutBuilder(
                     builder: (context, constraints) {
                       final w = constraints.maxWidth;
                       final h = constraints.maxHeight;
@@ -277,6 +292,8 @@ class _SplashScreenState extends State<SplashScreen>
                         },
                       );
                     },
+                  ),
+                    ),
                   ),
                 ),
               ),

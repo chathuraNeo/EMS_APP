@@ -50,6 +50,8 @@ class WebViewScreenState extends State<WebViewScreen>
   UserRole _currentRole = UserRole.unknown;
   late final WebViewFilePicker _filePicker;
   bool _initialLoadReported = false;
+  bool _isLoading = true;
+  double _loadProgress = 0.0;
 
   void _markInitialLoadFinished() {
     if (_initialLoadReported) return;
@@ -102,11 +104,21 @@ class WebViewScreenState extends State<WebViewScreen>
           },
           onProgress: (progress) {
             if (!mounted) return;
+            setState(() {
+              _loadProgress = progress / 100.0;
+            });
             if (progress >= 100) {
               _markInitialLoadFinished();
+              if (_isLoading) {
+                setState(() => _isLoading = false);
+              }
             }
           },
           onPageStarted: (url) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = true;
+            });
             if (AppConfig.isAdminUrl(url)) {
               _blockAdmin(reason: 'admin_url', url: url);
               return;
@@ -131,6 +143,7 @@ class WebViewScreenState extends State<WebViewScreen>
               })();
             ''');
             _hideSiteMenuButton();
+            _installInputUx();
           },
           onPageFinished: (url) {
             if (!mounted || _adminBlocked || url == 'about:blank') return;
@@ -138,6 +151,10 @@ class WebViewScreenState extends State<WebViewScreen>
               _blockAdmin(reason: 'admin_url', url: url);
               return;
             }
+            setState(() {
+              _isLoading = false;
+              _loadProgress = 1.0;
+            });
             _markInitialLoadFinished();
             _onPageReady(url);
           },
@@ -157,10 +174,23 @@ class WebViewScreenState extends State<WebViewScreen>
             }
           },
           onWebResourceError: (error) {
+            // Auto-recover if WebContent process was terminated (e.g., iOS memory reclaim)
+            if (error.errorType == WebResourceErrorType.webContentProcessTerminated ||
+                error.errorType == WebResourceErrorType.webViewInvalidated) {
+              debugPrint('ems webview process terminated, recovering...');
+              _controller.reload();
+              return;
+            }
+
             if (!_isNetworkError(error)) return;
             _markInitialLoadFinished();
             ConnectivityService.instance.markOffline();
-            if (mounted) setState(() => _online = false);
+            if (mounted) {
+              setState(() {
+                _online = false;
+                _isLoading = false;
+              });
+            }
           },
         ),
       );
@@ -224,12 +254,30 @@ class WebViewScreenState extends State<WebViewScreen>
   }
 
   bool _isNetworkError(WebResourceError error) {
+    if (error.isForMainFrame == false) return false;
+
     const networkTypes = {
       WebResourceErrorType.hostLookup,
       WebResourceErrorType.connect,
       WebResourceErrorType.timeout,
+      WebResourceErrorType.failedSslHandshake,
+      WebResourceErrorType.io,
     };
-    if (networkTypes.contains(error.errorType)) return true;
+    if (error.errorType != null && networkTypes.contains(error.errorType)) {
+      return true;
+    }
+
+    // iOS NSURLError codes (negative values from NSURLErrorDomain)
+    final code = error.errorCode;
+    if (code == -1009 || // kCFURLErrorNotConnectedToInternet
+        code == -1001 || // kCFURLErrorTimedOut
+        code == -1003 || // kCFURLErrorCannotFindHost
+        code == -1004 || // kCFURLErrorCannotConnectToHost
+        code == -1005 || // kCFURLErrorNetworkConnectionLost
+        code == -1006 || // kCFURLErrorDNSLookupFailed
+        code == -1200) { // kCFURLErrorSecureConnectionFailed
+      return true;
+    }
 
     final description = error.description.toUpperCase();
     return description.contains('NAME_NOT_RESOLVED') ||
@@ -237,7 +285,8 @@ class WebViewScreenState extends State<WebViewScreen>
         description.contains('ADDRESS_UNREACHABLE') ||
         description.contains('CONNECTION_ABORTED') ||
         description.contains('TIMED_OUT') ||
-        description.contains('NETWORK_CHANGED');
+        description.contains('NETWORK_CHANGED') ||
+        description.contains('NSURLERRORDOMAIN');
   }
 
   void _loadInitial() {
@@ -302,6 +351,7 @@ class WebViewScreenState extends State<WebViewScreen>
     await _hideSiteMenuButton();
     await _installFileUploadFix();
     await _installUiBridge();
+      await _installInputUx();
     await _checkAccessCookie(url);
     if (_adminBlocked) {
       _setShowNavigation(false);
@@ -555,26 +605,39 @@ class WebViewScreenState extends State<WebViewScreen>
     await _controller.loadRequest(Uri.parse(AppConfig.homeUrl));
   }
 
-  Future<void> openSiteSection(String page) async {
+  Future<void> openSiteSection(String page, {bool refreshData = true}) async {
     _pendingPage = page;
-    await _tryOpenPending();
+    await _tryOpenPending(refreshData: refreshData);
   }
 
-  Future<void> _tryOpenPending() async {
+  Future<void> _tryOpenPending({bool refreshData = true}) async {
     final page = _pendingPage;
     if (page == null || !_online || _adminBlocked) return;
 
     try {
+      final currentUrl = await _controller.currentUrl() ?? '';
+      if (currentUrl.isNotEmpty && !AppConfig.shouldShowAppNavigation(currentUrl)) {
+        final targetUrl = AppConfig.dashboardUrlForRole(_currentRole);
+        await _controller.loadRequest(Uri.parse(targetUrl));
+        return;
+      }
+
       final result = await _controller.runJavaScriptReturningResult(
-        _openSectionScript(page),
+        _openSectionScript(page, refreshData: refreshData),
       );
       final value = result.toString();
       if (value.contains('ok') || value.contains('click')) {
         _pendingPage = null;
+      } else if (value.contains('missing')) {
+        final targetUrl = AppConfig.dashboardUrlForRole(_currentRole);
+        if (currentUrl != targetUrl) {
+          await _controller.loadRequest(Uri.parse(targetUrl));
+        }
       }
       await _hideSiteMenuButton();
       await _installFileUploadFix();
       await _installUiBridge();
+      await _installInputUx();
     } catch (_) {
       // Page may still be login or mid-navigation; retry on next finish.
     }
@@ -608,10 +671,18 @@ class WebViewScreenState extends State<WebViewScreen>
     } catch (_) {}
   }
 
-  String _openSectionScript(String page) {
+  Future<void> _installInputUx() async {
+    if (!_online || _adminBlocked) return;
+    try {
+      await _controller.runJavaScript(_inputUxScript);
+    } catch (_) {}
+  }
+
+  String _openSectionScript(String page, {bool refreshData = true}) {
     return '''
       (function(){
         var target = ${jsonEncode(page)};
+        var refresh = ${refreshData ? 'true' : 'false'};
         var actions = {
           // Member section actions
           member_home: ['member_dashboard_01_A_OPEN'],
@@ -693,7 +764,22 @@ class WebViewScreenState extends State<WebViewScreen>
         for (var i = 0; i < fns.length; i++) {
           var fn = window[fns[i]];
           if (typeof fn === 'function') {
-            try { fn(); return 'ok'; } catch (e) {}
+            try {
+              fn();
+              if (refresh) {
+                try {
+                  if (typeof refreshAllMemberData === 'function') refreshAllMemberData();
+                  if (typeof updateCharts === 'function') updateCharts();
+                  if (typeof loadExpensesList === 'function') loadExpensesList();
+                  if (typeof loadPaymentsList === 'function') loadPaymentsList();
+                  if (typeof loadMembersList === 'function') loadMembersList();
+                  if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
+                  if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') Member_dashboard_02_A_expenses_list_SET_DB(1);
+                  if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') Member_dashboard_03_A_funds_received_list_SET_DB(1);
+                } catch (err) {}
+              }
+              return 'ok';
+            } catch (e) {}
           }
         }
 
@@ -872,6 +958,198 @@ class WebViewScreenState extends State<WebViewScreen>
         };
       }
       hookLoginAjax();
+    })();
+  ''';
+
+  static const String _inputUxScript = r'''
+    (function(){
+      if (window.__emsWebViewInputUxObs) return;
+      window.__emsWebViewInputUxObs = true;
+
+      function isAmount(el) {
+        if (!el || el.tagName !== 'INPUT') return false;
+        var exp = el.getAttribute('data-input-type');
+        if (exp === 'amount' || exp === 'decimal') return true;
+        var id = (el.id || '').toLowerCase();
+        var name = (el.name || '').toLowerCase();
+        var cls = (el.className || '').toLowerCase();
+        var ph = (el.placeholder || '').toLowerCase();
+        var step = el.getAttribute('step');
+        var type = (el.type || '').toLowerCase();
+        var kw = ['amount','balance','float','price','litres','liters','cost','rate','transfer','topup','fee','total','spent','limit','threshold','odometer','mileage'];
+        for (var i = 0; i < kw.length; i++) {
+          if (id.indexOf(kw[i]) !== -1 || name.indexOf(kw[i]) !== -1) return true;
+        }
+        if (cls.indexOf('amount') !== -1 || ph.indexOf('0.00') !== -1 || ph.indexOf('rs.') !== -1) return true;
+        if (type === 'number' && (step === '0.01' || step === '0.1' || step === 'any')) return true;
+        return false;
+      }
+
+      function isOtp(el) {
+        if (!el || el.tagName !== 'INPUT') return false;
+        if (el.getAttribute('data-input-type') === 'otp') return true;
+        var cls = (el.className || '').toLowerCase();
+        var id = (el.id || '').toLowerCase();
+        var name = (el.name || '').toLowerCase();
+        if (cls.indexOf('otp-digit') !== -1 || cls.indexOf('erp-otp-input') !== -1) return true;
+        if (id.indexOf('otpdigit') !== -1 || id.indexOf('otp-digit') !== -1) return true;
+        if (name.indexOf('otp') !== -1 && el.maxLength === 1) return true;
+        var p = el.parentElement;
+        if (p && ((p.className || '').toLowerCase().indexOf('otp') !== -1)) return true;
+        return false;
+      }
+
+      function isPhone(el) {
+        if (!el || el.tagName !== 'INPUT') return false;
+        if (el.type === 'tel') return true;
+        var id = (el.id || '').toLowerCase();
+        var name = (el.name || '').toLowerCase();
+        return id.indexOf('mobile') !== -1 || id.indexOf('phone') !== -1 || id.indexOf('whatsapp') !== -1 ||
+               name.indexOf('mobile') !== -1 || name.indexOf('phone') !== -1 || name.indexOf('whatsapp') !== -1;
+      }
+
+      function isStrictNum(el) {
+        if (!el || el.tagName !== 'INPUT') return false;
+        var id = (el.id || '').toLowerCase();
+        return id.indexOf('bankaccno') !== -1 || id.indexOf('bankacno') !== -1 || id.indexOf('checkformnumber') !== -1;
+      }
+
+      function getOtpGroup(input) {
+        var p = input.closest('form') || input.closest('.otp-inputs') || input.closest('.erp-otp-group') || input.parentElement;
+        if (!p) return [input];
+        var list = Array.from(p.querySelectorAll('.otp-digit, .erp-otp-input, input[data-input-type="otp"], input[maxlength="1"]'));
+        return list.length > 0 ? list : [input];
+      }
+
+      function enhance(el) {
+        if (!el || el.nodeType !== 1 || el.tagName !== 'INPUT') return;
+        if (el.hasAttribute('data-ems-app-ux')) return;
+        var t = (el.type || 'text').toLowerCase();
+        if (t === 'hidden' || t === 'checkbox' || t === 'radio' || t === 'submit' || t === 'button' || t === 'file') return;
+
+        if (isOtp(el)) {
+          el.setAttribute('data-ems-app-ux', 'otp');
+          el.setAttribute('inputmode', 'numeric');
+          el.setAttribute('pattern', '[0-9]*');
+          el.setAttribute('maxlength', '1');
+          el.setAttribute('autocorrect', 'off');
+          el.setAttribute('autocapitalize', 'none');
+          if (el.type !== 'tel') { try { el.type = 'tel'; } catch(e){} }
+          var g = getOtpGroup(el);
+          if (g[0] === el) { el.setAttribute('autocomplete', 'one-time-code'); }
+          else { el.setAttribute('autocomplete', 'off'); }
+
+          el.addEventListener('keydown', function(e) {
+            var grp = getOtpGroup(this);
+            var idx = grp.indexOf(this);
+            if (e.key === 'Backspace') {
+              e.preventDefault();
+              if (this.value) { this.value = ''; }
+              else if (idx > 0) { grp[idx - 1].value = ''; grp[idx - 1].focus(); }
+              return;
+            }
+            if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); grp[idx - 1].focus(); return; }
+            if (e.key === 'ArrowRight' && idx < grp.length - 1) { e.preventDefault(); grp[idx + 1].focus(); return; }
+            if (e.key === 'Tab' || e.key === 'Enter' || e.ctrlKey || e.metaKey) return;
+            if (/^[0-9]$/.test(e.key)) {
+              e.preventDefault();
+              this.value = e.key;
+              if (idx < grp.length - 1) { grp[idx + 1].focus(); }
+              var done = grp.every(function(b){ return /^[0-9]$/.test(b.value.trim()); });
+              if (done) {
+                var f = grp[0].closest('form');
+                if (f) { setTimeout(function(){ if (f.requestSubmit) f.requestSubmit(); else f.submit(); }, 80); }
+              }
+              return;
+            }
+            if (e.key.length === 1) { e.preventDefault(); }
+          });
+
+          el.addEventListener('input', function() {
+            var raw = this.value.replace(/\D/g, '');
+            var grp = getOtpGroup(this);
+            var idx = grp.indexOf(this);
+            if (raw.length > 1) {
+              for (var i = 0; i < raw.length && (idx + i) < grp.length; i++) {
+                grp[idx + i].value = raw[i];
+              }
+              var next = Math.min(idx + raw.length, grp.length - 1);
+              grp[next].focus();
+              return;
+            }
+            this.value = raw.slice(0, 1);
+            if (this.value && idx < grp.length - 1) { grp[idx + 1].focus(); }
+          });
+          return;
+        }
+
+        if (isAmount(el)) {
+          el.setAttribute('data-ems-app-ux', 'amount');
+          el.setAttribute('inputmode', 'decimal');
+          el.setAttribute('autocomplete', 'off');
+          el.setAttribute('autocorrect', 'off');
+          el.setAttribute('autocapitalize', 'none');
+          el.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Tab' || e.key === 'Enter' || e.key === 'Escape' ||
+                e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.ctrlKey || e.metaKey) return;
+            if (e.key === '.' || e.key === ',') {
+              if (this.value.indexOf('.') !== -1 || this.value.indexOf(',') !== -1) { e.preventDefault(); }
+              return;
+            }
+            if (/^[0-9]$/.test(e.key)) return;
+            e.preventDefault();
+          });
+          el.addEventListener('input', function() {
+            var v = this.value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+            var p = v.split('.');
+            if (p.length > 2) { v = p[0] + '.' + p.slice(1).join(''); }
+            if (v !== this.value) {
+              var pos = this.selectionStart;
+              this.value = v;
+              try { this.setSelectionRange(pos, pos); } catch(err){}
+            }
+          });
+          return;
+        }
+
+        if (isStrictNum(el)) {
+          el.setAttribute('data-ems-app-ux', 'num');
+          el.setAttribute('inputmode', 'numeric');
+          el.setAttribute('pattern', '[0-9]*');
+          el.addEventListener('input', function() {
+            var v = this.value.replace(/\D/g, '');
+            if (v !== this.value) { this.value = v; }
+          });
+          return;
+        }
+
+        if (isPhone(el)) {
+          el.setAttribute('data-ems-app-ux', 'phone');
+          el.setAttribute('inputmode', 'tel');
+          if (el.type !== 'tel') { try { el.type = 'tel'; } catch(e){} }
+          return;
+        }
+      }
+
+      function scan() {
+        var arr = document.querySelectorAll('input');
+        for (var i = 0; i < arr.length; i++) { enhance(arr[i]); }
+      }
+      scan();
+      new MutationObserver(function(muts) {
+        for (var i = 0; i < muts.length; i++) {
+          for (var j = 0; j < muts[i].addedNodes.length; j++) {
+            var n = muts[i].addedNodes[j];
+            if (n.nodeType === 1) {
+              if (n.tagName === 'INPUT') enhance(n);
+              else if (n.querySelectorAll) {
+                var sub = n.querySelectorAll('input');
+                for (var k = 0; k < sub.length; k++) enhance(sub[k]);
+              }
+            }
+          }
+        }
+      }).observe(document.documentElement || document.body, { childList: true, subtree: true });
     })();
   ''';
 
@@ -1185,16 +1463,68 @@ class WebViewScreenState extends State<WebViewScreen>
     })();
   ''';
 
+  Future<void> reload() async {
+    final online = await ConnectivityService.instance.hasConnection();
+    if (!mounted) return;
+    if (!online) {
+      setState(() => _online = false);
+      return;
+    }
+    setState(() {
+      _online = true;
+      _isLoading = true;
+    });
+
+    try {
+      final res = await _controller.runJavaScriptReturningResult('''
+        (function(){
+          var refreshed = false;
+          if (typeof refreshAllMemberData === 'function') {
+            try { refreshAllMemberData(); refreshed = true; } catch (e) {}
+          }
+          if (typeof updateCharts === 'function' || typeof loadExpensesList === 'function') {
+            try {
+              if (typeof loadExpensesList === 'function') loadExpensesList();
+              if (typeof loadPaymentsList === 'function') loadPaymentsList();
+              if (typeof updateCharts === 'function') updateCharts();
+              if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
+              refreshed = true;
+            } catch (e) {}
+          }
+          if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') {
+            try { Member_dashboard_02_A_expenses_list_SET_DB(1); refreshed = true; } catch (e) {}
+          }
+          if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') {
+            try { Member_dashboard_03_A_funds_received_list_SET_DB(1); refreshed = true; } catch (e) {}
+          }
+          return refreshed ? 'refreshed' : 'reload';
+        })();
+      ''');
+      if (res.toString().contains('refreshed')) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+    } catch (_) {}
+
+    await _controller.reload();
+  }
+
   Future<void> retry() async {
     setState(() => _checking = true);
-    final online = await ConnectivityService.instance.hasConnection();
+    final online = await ConnectivityService.instance.refresh();
     if (!mounted) return;
     setState(() {
       _online = online;
       _checking = false;
+      _isLoading = online;
     });
     if (online) {
-      _loadInitial();
+      if (_pendingPage != null) {
+        await _tryOpenPending();
+      } else {
+        await _controller.reload();
+      }
     } else {
       _markInitialLoadFinished();
     }
@@ -1240,6 +1570,36 @@ class WebViewScreenState extends State<WebViewScreen>
       return const ColoredBox(color: AppTheme.neoBlue);
     }
 
-    return WebViewWidget(controller: _controller);
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller),
+        if (_isLoading && !_initialLoadReported)
+          Positioned.fill(
+            child: Container(
+              color: AppTheme.cream,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: AppTheme.green700,
+                  strokeWidth: 3,
+                ),
+              ),
+            ),
+          )
+        else if (_isLoading)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SizedBox(
+              height: 2.5,
+              child: LinearProgressIndicator(
+                value: _loadProgress > 0 && _loadProgress < 1.0 ? _loadProgress : null,
+                backgroundColor: Colors.transparent,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.green700),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
