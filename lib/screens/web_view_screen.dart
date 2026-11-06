@@ -78,7 +78,7 @@ class WebViewScreenState extends State<WebViewScreen>
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(AppTheme.cream)
+      ..setBackgroundColor(AppTheme.card)
       ..enableZoom(false)
       ..setUserAgent(
         Platform.isIOS
@@ -1559,7 +1559,7 @@ class WebViewScreenState extends State<WebViewScreen>
 
     if (_checking) {
       return const ColoredBox(
-        color: AppTheme.cream,
+        color: AppTheme.card,
         child: Center(
           child: CircularProgressIndicator(color: AppTheme.green700),
         ),

@@ -278,17 +278,19 @@ class _MainNavigationState extends State<MainNavigation> {
     final safeIndex = _currentIndex.clamp(0, items.isEmpty ? 0 : items.length - 1);
     final isCompact = items.length >= 6;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _onPopAttempt();
-      },
-      child: Stack(
-        children: [
-          Scaffold(
-            backgroundColor: AppTheme.cream,
-            body: SafeArea(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.systemOverlay,
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          _onPopAttempt();
+        },
+        child: Stack(
+          children: [
+            Scaffold(
+              backgroundColor: AppTheme.card,
+              body: SafeArea(
               bottom: !_showNavigation,
               child: Stack(
                 fit: StackFit.expand,
@@ -368,6 +370,7 @@ class _MainNavigationState extends State<MainNavigation> {
             ),
         ],
       ),
-    );
+    ),
+  );
   }
 }

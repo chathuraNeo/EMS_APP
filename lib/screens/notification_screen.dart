@@ -90,7 +90,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: AppTheme.cream,
+      color: AppTheme.card,
       child: SafeArea(
         child: Column(
           children: [
@@ -316,7 +316,7 @@ class _NotificationDetailPageState extends State<NotificationDetailPage> {
     final imageUrl = item.imageUrl;
 
     return Scaffold(
-      backgroundColor: AppTheme.cream,
+      backgroundColor: AppTheme.card,
       appBar: AppBar(
         title: const Text('Notification'),
         backgroundColor: AppTheme.green950,

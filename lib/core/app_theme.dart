@@ -78,8 +78,8 @@ class AppTheme {
 
   static SystemUiOverlayStyle get systemOverlay => const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    statusBarBrightness: Brightness.dark,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
     systemNavigationBarColor: card,
     systemNavigationBarIconBrightness: Brightness.dark,
   );
@@ -91,13 +91,13 @@ class AppTheme {
         seedColor: green700,
         primary: green700,
         secondary: gold500,
-        surface: cream,
+        surface: card,
         brightness: Brightness.light,
       ),
     );
 
     return base.copyWith(
-      scaffoldBackgroundColor: cream,
+      scaffoldBackgroundColor: card,
       appBarTheme: const AppBarTheme(
         backgroundColor: green950,
         foregroundColor: cream,
