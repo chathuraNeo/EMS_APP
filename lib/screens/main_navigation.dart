@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/app_config.dart';
 import '../core/app_theme.dart';
 import '../services/connectivity_service.dart';
+import '../services/notification_api.dart';
 import '../services/push_notification_service.dart';
 import 'no_internet_screen.dart';
 import 'more_hub_screen.dart';
@@ -59,10 +60,20 @@ class _MainNavigationState extends State<MainNavigation> {
     }
     if (PushNotificationService.instance.consumeOpenRequest()) {
       _pendingNotificationTab = true;
+      final notifIdx = _notificationIndex;
+      if (notifIdx != -1) {
+        _currentIndex = notifIdx;
+      }
     }
     ConnectivityService.instance.isOnline.addListener(_onConnectivityChanged);
     PushNotificationService.instance.notificationsOpened
         .addListener(_onNotificationOpened);
+    PushNotificationService.instance.openedNotificationDetail
+        .addListener(_onNotificationDetailOpened);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingDetail();
+    });
   }
 
   void _onConnectivityChanged() {
@@ -100,8 +111,10 @@ class _MainNavigationState extends State<MainNavigation> {
     setState(() {
       _showNavigation = show;
       if (!show) {
-        _currentIndex = 0;
-        _lastWebIndex = 0;
+        if (!_isNotificationActive) {
+          _currentIndex = 0;
+          _lastWebIndex = 0;
+        }
         _paymentListVisible = false;
       } else if (_pendingNotificationTab) {
         final notifIdx = _notificationIndex;
@@ -115,16 +128,54 @@ class _MainNavigationState extends State<MainNavigation> {
     _openNotificationTab();
   }
 
+  void _onNotificationDetailOpened() {
+    _checkPendingDetail();
+  }
+
+  Future<void> _checkPendingDetail() async {
+    final detail = PushNotificationService.instance.openedNotificationDetail.value;
+    if (detail == null || !mounted) return;
+    PushNotificationService.instance.openedNotificationDetail.value = null;
+
+    _openNotificationTab();
+
+    var itemToShow = detail;
+    if (detail.id > 0 && (detail.body.trim().isEmpty || detail.title.trim() == 'Notification')) {
+      try {
+        final list = await NotificationApi.instance.fetchInbox().timeout(
+          const Duration(milliseconds: 600),
+          onTimeout: () => const [],
+        );
+        final match = list.firstWhere(
+          (it) => it.id == detail.id,
+          orElse: () => detail,
+        );
+        if (match.id == detail.id && match.body.isNotEmpty) {
+          itemToShow = match.copyWith(isRead: true);
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NotificationDetailPage(item: itemToShow),
+      ),
+    );
+  }
+
   void _openNotificationTab() {
     PushNotificationService.instance.requestInboxRefresh();
     final notifIdx = _notificationIndex;
     if (notifIdx == -1) return;
-    if (!_showNavigation) {
+    if (!mounted) {
       _pendingNotificationTab = true;
       return;
     }
-    if (!mounted) return;
-    setState(() => _currentIndex = notifIdx);
+    setState(() {
+      _currentIndex = notifIdx;
+      _pendingNotificationTab = false;
+    });
   }
 
   void _onTabTapped(int index) {
@@ -216,6 +267,8 @@ class _MainNavigationState extends State<MainNavigation> {
     ConnectivityService.instance.isOnline.removeListener(_onConnectivityChanged);
     PushNotificationService.instance.notificationsOpened
         .removeListener(_onNotificationOpened);
+    PushNotificationService.instance.openedNotificationDetail
+        .removeListener(_onNotificationDetailOpened);
     super.dispose();
   }
 
@@ -248,8 +301,12 @@ class _MainNavigationState extends State<MainNavigation> {
                     onUserRoleChanged: _onRoleChanged,
                     onInitialLoadFinished: widget.onInitialLoadFinished,
                   ),
-                  if (_showNavigation && _isNotificationActive)
-                    const NotificationScreen(),
+                  if (_isNotificationActive)
+                    NotificationScreen(
+                      onClose: !_showNavigation
+                          ? () => setState(() => _currentIndex = _lastWebIndex)
+                          : null,
+                    ),
                   if (_showNavigation && _isMoreActive)
                     MoreHubScreen(
                       currentRole: _currentRole,

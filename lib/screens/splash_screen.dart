@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../core/app_config.dart';
 import '../core/app_theme.dart';
+import '../services/push_notification_service.dart';
 import 'main_navigation.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -24,15 +25,19 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller;
+  late final AnimationController _pulseController;
   late final Widget _activeDestination;
   bool _navigated = false;
   bool _overlayVisible = true;
   bool _overlayFading = false;
   bool _webReady = false;
   bool _waitingForWeb = false;
+  bool _showSlowNetworkHint = false;
   Timer? _maxWaitTimer;
+  Timer? _slowNetworkTimer;
+  VoidCallback? _notifListener;
 
   @override
   void initState() {
@@ -43,10 +48,38 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(vsync: this, duration: widget.duration);
 
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    );
+
+    _notifListener = () {
+      if (mounted) {
+        _onWebReady();
+        if (!_controller.isCompleted) {
+          _controller.forward();
+        }
+      }
+    };
+    PushNotificationService.instance.notificationsOpened.addListener(_notifListener!);
+
     _controller.addListener(() {
       if (!_webReady && _controller.value >= 0.65) {
-        _waitingForWeb = true;
-        _controller.stop();
+        // If user tapped a notification, don't hold splash waiting for web
+        if (PushNotificationService.instance.hasPendingNotification) {
+          _onWebReady();
+          return;
+        }
+        if (!_waitingForWeb) {
+          _waitingForWeb = true;
+          _controller.stop();
+          _pulseController.repeat(reverse: true);
+          _slowNetworkTimer = Timer(const Duration(milliseconds: 2800), () {
+            if (mounted && _waitingForWeb) {
+              setState(() => _showSlowNetworkHint = true);
+            }
+          });
+        }
       }
     });
 
@@ -56,7 +89,8 @@ class _SplashScreenState extends State<SplashScreen>
       }
     });
 
-    _maxWaitTimer = Timer(const Duration(milliseconds: 5500), () {
+    // Failsafe timeout: if network is extremely slow, reveal app after 8.5 seconds
+    _maxWaitTimer = Timer(const Duration(milliseconds: 8500), () {
       _onWebReady();
     });
 
@@ -67,8 +101,10 @@ class _SplashScreenState extends State<SplashScreen>
     if (_webReady || !mounted) return;
     _webReady = true;
     _maxWaitTimer?.cancel();
+    _slowNetworkTimer?.cancel();
     if (_waitingForWeb) {
       _waitingForWeb = false;
+      _pulseController.stop();
       _controller.forward();
     }
   }
@@ -111,7 +147,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    if (_notifListener != null) {
+      PushNotificationService.instance.notificationsOpened.removeListener(_notifListener!);
+    }
     _maxWaitTimer?.cancel();
+    _slowNetworkTimer?.cancel();
+    _pulseController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -163,9 +204,11 @@ class _SplashScreenState extends State<SplashScreen>
                       final logoHeight = logoWidth * (324.0 / 762.0);
 
                       return AnimatedBuilder(
-                        animation: _controller,
+                        animation: Listenable.merge([_controller, _pulseController]),
                         builder: (context, _) {
                           final t = _controller.value;
+                          final pulseVal = _waitingForWeb ? _pulseController.value : 0.0;
+                          final pulseScale = _waitingForWeb ? (1.0 + 0.038 * (pulseVal - 0.5)) : 1.0;
 
                           double currentIrisRadius = circleRadius;
                           double circleY = initialCircleY;
@@ -250,6 +293,8 @@ class _SplashScreenState extends State<SplashScreen>
                                   sheetTop: sheetTop,
                                   backgroundColor: AppTheme.neoBlue,
                                   foregroundColor: Colors.white,
+                                  pulseProgress: pulseVal,
+                                  isWaiting: _waitingForWeb,
                                 ),
                               ),
 
@@ -259,12 +304,43 @@ class _SplashScreenState extends State<SplashScreen>
                                   top: circleY - (logoHeight / 2.0),
                                   width: logoWidth,
                                   height: logoHeight,
-                                  child: Image.asset(
-                                    AppConfig.logoAsset,
-                                    fit: BoxFit.contain,
-                                    filterQuality: FilterQuality.high,
-                                    errorBuilder: (_, _, _) =>
-                                        const SizedBox.shrink(),
+                                  child: Transform.scale(
+                                    scale: pulseScale,
+                                    child: Image.asset(
+                                      AppConfig.logoAsset,
+                                      fit: BoxFit.contain,
+                                      filterQuality: FilterQuality.high,
+                                      errorBuilder: (_, _, _) =>
+                                          const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                ),
+
+                              if (_waitingForWeb && _showSlowNetworkHint)
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  top: initialCircleY + circleRadius + 28,
+                                  child: Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.18),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: const Text(
+                                        'Connecting securely...',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
 
@@ -316,6 +392,8 @@ class _SplashAnimationPainter extends CustomPainter {
     required this.sheetTop,
     required this.backgroundColor,
     required this.foregroundColor,
+    this.pulseProgress = 0.0,
+    this.isWaiting = false,
   });
 
   final double progress;
@@ -328,6 +406,8 @@ class _SplashAnimationPainter extends CustomPainter {
   final double sheetTop;
   final Color backgroundColor;
   final Color foregroundColor;
+  final double pulseProgress;
+  final bool isWaiting;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -381,6 +461,15 @@ class _SplashAnimationPainter extends CustomPainter {
       }
 
       if ((circleY + circleRadius) > 0.0) {
+        // Soft aura breathing ring while waiting for webview to finish loading
+        if (isWaiting && pulseProgress > 0.0) {
+          final auraRadius = circleRadius + 14.0 * pulseProgress;
+          final paintAura = Paint()
+            ..color = Colors.white.withOpacity(0.28 * (1.0 - pulseProgress))
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.0;
+          canvas.drawCircle(Offset(cx, circleY), auraRadius, paintAura);
+        }
         canvas.drawCircle(Offset(cx, circleY), circleRadius, paintWhite);
       }
 
@@ -401,6 +490,8 @@ class _SplashAnimationPainter extends CustomPainter {
         old.anchorRadius != anchorRadius ||
         old.lineProgress != lineProgress ||
         old.anchorProgress != anchorProgress ||
-        old.sheetTop != sheetTop;
+        old.sheetTop != sheetTop ||
+        old.pulseProgress != pulseProgress ||
+        old.isWaiting != isWaiting;
   }
 }

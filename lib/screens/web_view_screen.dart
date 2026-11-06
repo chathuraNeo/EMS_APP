@@ -1573,19 +1573,8 @@ class WebViewScreenState extends State<WebViewScreen>
     return Stack(
       children: [
         WebViewWidget(controller: _controller),
-        if (_isLoading && !_initialLoadReported)
-          Positioned.fill(
-            child: Container(
-              color: AppTheme.cream,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  color: AppTheme.green700,
-                  strokeWidth: 3,
-                ),
-              ),
-            ),
-          )
-        else if (_isLoading)
+        // Top linear progress bar only for subsequent in-app page reloads and tab switches
+        if (_isLoading && _initialLoadReported)
           Positioned(
             top: 0,
             left: 0,

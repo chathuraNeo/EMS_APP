@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/app_config.dart';
@@ -14,8 +16,12 @@ Future<void> main() async {
   ]);
   SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlay);
   ConnectivityService.instance.start();
-  await PushNotificationService.instance.init();
+
+  // Run the app immediately so the native splash transitions to the Flutter UI smoothly without hanging
   runApp(const MyApp());
+
+  // Initialize push notifications asynchronously
+  unawaited(PushNotificationService.instance.init());
 }
 
 class MyApp extends StatelessWidget {

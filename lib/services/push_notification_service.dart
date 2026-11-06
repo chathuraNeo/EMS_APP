@@ -28,6 +28,7 @@ class PushNotificationService {
 
   final ValueNotifier<int> notificationsOpened = ValueNotifier(0);
   final ValueNotifier<int> inboxRefresh = ValueNotifier(0);
+  final ValueNotifier<AppNotification?> openedNotificationDetail = ValueNotifier(null);
 
   bool _ready = false;
   bool _registering = false;
@@ -36,6 +37,9 @@ class PushNotificationService {
   String? _savedToken;
   PushTokenRegistrar? _registrar;
   Completer<bool>? _webRegisterCompleter;
+
+  bool get hasPendingNotification =>
+      _openNotificationsRequested || openedNotificationDetail.value != null;
 
   bool consumeOpenRequest() {
     final requested = _openNotificationsRequested;
@@ -50,6 +54,55 @@ class PushNotificationService {
 
   void requestInboxRefresh() {
     inboxRefresh.value++;
+  }
+
+  void _handleMessagePayload({
+    String? title,
+    String? body,
+    Map<dynamic, dynamic>? data,
+  }) {
+    final t = (title ??
+            data?['title'] ??
+            data?['gcm.notification.title'] ??
+            data?['gcm.n.title'] ??
+            data?['google.c.a.c_l'] ??
+            '')
+        .toString()
+        .trim();
+    final b = (body ??
+            data?['body'] ??
+            data?['gcm.notification.body'] ??
+            data?['gcm.n.body'] ??
+            data?['google.c.a.m_l'] ??
+            '')
+        .toString()
+        .trim();
+    final notifId = int.tryParse(
+            '${data?['notification_id'] ?? data?['id'] ?? data?['gcm.notification.id'] ?? ''}') ??
+        0;
+    final type = (data?['type'] ?? data?['category'] ?? 'all').toString();
+    final image = (data?['image_pth'] ??
+            data?['image_url'] ??
+            data?['image'] ??
+            data?['gcm.notification.image'] ??
+            '')
+        .toString()
+        .trim();
+
+    if (t.isNotEmpty || b.isNotEmpty || notifId > 0) {
+      final notif = AppNotification(
+        id: notifId,
+        type: type.isEmpty ? 'all' : type,
+        title: t.isEmpty ? 'Notification' : t,
+        body: b,
+        imagePth: image.isEmpty ? null : image,
+        createdAt: DateTime.now(),
+        isRead: true,
+      );
+      openedNotificationDetail.value = notif;
+    }
+    requestOpenNotifications();
+    requestInboxRefresh();
   }
 
   void setRegistrar(PushTokenRegistrar? registrar) {
@@ -87,27 +140,60 @@ class PushNotificationService {
 
   Future<void> init() async {
     try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      try {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 4));
+      } catch (e) {
+        debugPrint('ems Firebase.initializeApp error: $e');
+      }
+
+      try {
+        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      } catch (_) {}
+
+      try {
+        await FirebaseMessaging.instance
+            .setForegroundNotificationPresentationOptions(
+              alert: true,
+              badge: true,
+              sound: true,
+            )
+            .timeout(const Duration(seconds: 2));
+      } catch (_) {}
+
+      try {
+        await FirebaseMessaging.instance
+            .requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+            )
+            .timeout(const Duration(seconds: 2));
+      } catch (_) {}
+
       await _ensureAndroidChannel();
       _channel.setMethodCallHandler(_onNativeCall);
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
       FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
       FirebaseMessaging.instance.onTokenRefresh.listen(_onTokenRefresh);
-      final initial = await FirebaseMessaging.instance.getInitialMessage();
-      if (initial != null) {
-        requestOpenNotifications();
+
+      // Safe getInitialMessage with a timeout so it never hangs cold start
+      try {
+        final initial = await FirebaseMessaging.instance
+            .getInitialMessage()
+            .timeout(const Duration(milliseconds: 1500), onTimeout: () => null);
+        if (initial != null) {
+          _handleMessagePayload(
+            title: initial.notification?.title ?? initial.data['title'],
+            body: initial.notification?.body ?? initial.data['body'],
+            data: initial.data,
+          );
+        }
+      } catch (e) {
+        debugPrint('ems getInitialMessage error: $e');
       }
+
       await _checkNativeLaunch();
       _ready = true;
     } catch (error) {
@@ -117,23 +203,52 @@ class PushNotificationService {
 
   Future<void> _onNativeCall(MethodCall call) async {
     if (call.method == 'opened') {
-      requestOpenNotifications();
+      final args = call.arguments is Map ? Map<dynamic, dynamic>.from(call.arguments as Map) : null;
+      if (args != null && args.isNotEmpty) {
+        _handleMessagePayload(
+          title: args['title']?.toString(),
+          body: args['body']?.toString(),
+          data: args,
+        );
+      } else {
+        requestOpenNotifications();
+        requestInboxRefresh();
+      }
     }
   }
 
   Future<void> _checkNativeLaunch() async {
     if (!Platform.isAndroid) return;
     try {
-      final opened = await _channel.invokeMethod<bool>('didOpenFromNotification');
-      if (opened == true) {
+      final res = await _channel.invokeMethod<dynamic>('didOpenFromNotification');
+      if (res is bool && res == true) {
         requestOpenNotifications();
+        requestInboxRefresh();
+      } else if (res is Map) {
+        final opened = res['opened'] == true;
+        if (opened) {
+          final data = res['data'] is Map ? Map<dynamic, dynamic>.from(res['data'] as Map) : null;
+          if (data != null && data.isNotEmpty) {
+            _handleMessagePayload(
+              title: data['title']?.toString(),
+              body: data['body']?.toString(),
+              data: data,
+            );
+          } else {
+            requestOpenNotifications();
+            requestInboxRefresh();
+          }
+        }
       }
     } catch (_) {}
   }
 
   void _onMessageOpened(RemoteMessage message) {
-    requestOpenNotifications();
-    requestInboxRefresh();
+    _handleMessagePayload(
+      title: message.notification?.title ?? message.data['title'],
+      body: message.notification?.body ?? message.data['body'],
+      data: message.data,
+    );
   }
 
   Future<void> registerAfterLogin() async {
@@ -203,6 +318,7 @@ class PushNotificationService {
     requestInboxRefresh();
     final title = message.notification?.title ?? message.data['title'] ?? 'EMS';
     final body = message.notification?.body ?? message.data['body'] ?? '';
+    final notifId = message.data['notification_id'] ?? message.data['id'];
     if (title.toString().trim().isEmpty && body.toString().trim().isEmpty) {
       return;
     }
@@ -211,6 +327,8 @@ class PushNotificationService {
         await _channel.invokeMethod('show', {
           'title': title.toString(),
           'body': body.toString(),
+          if (notifId != null) 'notification_id': notifId.toString(),
+          'data': message.data,
         });
       } catch (error) {
         debugPrint('ems push foreground show failed: $error');

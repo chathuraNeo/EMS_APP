@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
 import '../services/notification_api.dart';
@@ -6,7 +6,9 @@ import '../services/push_notification_service.dart';
 import '../widgets/notification_image.dart';
 
 class NotificationScreen extends StatefulWidget {
-  const NotificationScreen({super.key});
+  const NotificationScreen({super.key, this.onClose});
+
+  final VoidCallback? onClose;
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -92,18 +94,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Notifications',
-                  style: TextStyle(
-                    color: AppTheme.ink,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 20, 8),
+              child: Row(
+                children: [
+                  if (widget.onClose != null) ...[
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.ink),
+                      onPressed: widget.onClose,
+                      tooltip: 'Back',
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  const Text(
+                    'Notifications',
+                    style: TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
             Expanded(
@@ -256,13 +267,52 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 }
 
-class NotificationDetailPage extends StatelessWidget {
+class NotificationDetailPage extends StatefulWidget {
   const NotificationDetailPage({super.key, required this.item});
 
   final AppNotification item;
 
   @override
+  State<NotificationDetailPage> createState() => _NotificationDetailPageState();
+}
+
+class _NotificationDetailPageState extends State<NotificationDetailPage> {
+  late AppNotification _item;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _item = widget.item;
+    if (_item.id > 0 && (_item.body.trim().isEmpty || _item.title.trim() == 'Notification')) {
+      _loadFullDetails();
+    }
+  }
+
+  Future<void> _loadFullDetails() async {
+    setState(() => _loading = true);
+    try {
+      final items = await NotificationApi.instance.fetchInbox();
+      final match = items.firstWhere(
+        (it) => it.id == _item.id,
+        orElse: () => _item,
+      );
+      if (mounted && match.id == _item.id && match.body.isNotEmpty) {
+        setState(() {
+          _item = match.copyWith(isRead: true);
+          _loading = false;
+        });
+        return;
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = _item;
     final imageUrl = item.imageUrl;
 
     return Scaffold(
@@ -296,39 +346,53 @@ class NotificationDetailPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            item.body,
-            style: const TextStyle(
-              color: AppTheme.inkMuted,
-              fontSize: 16,
-              height: 1.55,
+          if (_loading && item.body.trim().isEmpty) ...[
+            const SizedBox(height: 24),
+            const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppTheme.green700,
+                ),
+              ),
             ),
-          ),
-          if (imageUrl != null) ...[
-            const SizedBox(height: 20),
-            NotificationImage(
-              url: imageUrl,
-              height: 240,
-              borderRadius: const BorderRadius.all(Radius.circular(18)),
-              heroTag: 'notification-image-${item.id}',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => NotificationImageViewer(
-                      url: imageUrl,
-                      title: item.title,
-                      heroTag: 'notification-image-${item.id}',
+          ] else ...[
+            Text(
+              item.body,
+              style: const TextStyle(
+                color: AppTheme.inkMuted,
+                fontSize: 16,
+                height: 1.55,
+              ),
+            ),
+            if (imageUrl != null) ...[
+              const SizedBox(height: 20),
+              NotificationImage(
+                url: imageUrl,
+                height: 240,
+                borderRadius: const BorderRadius.all(Radius.circular(18)),
+                heroTag: 'notification-image-${item.id}',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => NotificationImageViewer(
+                        url: imageUrl,
+                        title: item.title,
+                        heroTag: 'notification-image-${item.id}',
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap the image to view full size',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.inkMuted, fontSize: 12),
-            ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Tap the image to view full size',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.inkMuted, fontSize: 12),
+              ),
+            ],
           ],
         ],
       ),

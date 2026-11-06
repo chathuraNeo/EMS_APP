@@ -24,6 +24,7 @@ class MainActivity : FlutterActivity() {
     private var methodChannel: MethodChannel? = null
     private var permissionsChannel: MethodChannel? = null
     private var pendingOpenNotifications = false
+    private var pendingNotificationData: Map<String, Any?>? = null
 
     private val PERMISSION_REQUEST_CODE = 4401
     private var pendingPermissionResult: MethodChannel.Result? = null
@@ -55,13 +56,21 @@ class MainActivity : FlutterActivity() {
                 "show" -> {
                     val title = call.argument<String>("title") ?: "EMS"
                     val body = call.argument<String>("body") ?: ""
-                    showNotification(title, body)
+                    val notificationId = call.argument<String>("notification_id") ?: call.argument<Int>("id")?.toString()
+                    val payload = call.argument<Map<String, Any?>>("data")
+                    showNotification(title, body, notificationId, payload)
                     result.success(true)
                 }
                 "didOpenFromNotification" -> {
                     val open = pendingOpenNotifications
                     pendingOpenNotifications = false
-                    result.success(open)
+                    val data = pendingNotificationData
+                    pendingNotificationData = null
+                    val res = mutableMapOf<String, Any?>("opened" to open)
+                    if (data != null) {
+                        res["data"] = data
+                    }
+                    result.success(res)
                 }
                 else -> result.notImplemented()
             }
@@ -113,8 +122,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-
-        notifyFlutterIfNeeded()
     }
 
     private fun getPermissionsStatus(): Map<String, Boolean> {
@@ -165,18 +172,55 @@ class MainActivity : FlutterActivity() {
     private fun captureOpenFromIntent(intent: Intent?) {
         if (intent == null) return
         val extras = intent.extras
+        val isFcm = extras != null && (
+            extras.containsKey("google.message_id") ||
+            extras.containsKey("gcm.n.e") ||
+            extras.containsKey("from") ||
+            extras.getString("open") == "notifications" ||
+            extras.getString("click_action") == "FLUTTER_NOTIFICATION_CLICK"
+        )
         val open = intent.getBooleanExtra("open_notifications", false) ||
             intent.action == "FLUTTER_NOTIFICATION_CLICK" ||
-            extras?.getString("open") == "notifications" ||
-            extras?.getString("click_action") == "FLUTTER_NOTIFICATION_CLICK"
+            isFcm
+
         if (open) {
             pendingOpenNotifications = true
+            val data = mutableMapOf<String, Any?>()
+            extras?.keySet()?.forEach { key ->
+                val v = extras.get(key)
+                if (v != null) {
+                    data[key] = v.toString()
+                }
+            }
+            val title = extras?.getString("title")
+                ?: extras?.getString("gcm.notification.title")
+                ?: extras?.getString("gcm.n.title")
+                ?: extras?.getString("google.c.a.c_l")
+            val body = extras?.getString("body")
+                ?: extras?.getString("gcm.notification.body")
+                ?: extras?.getString("gcm.n.body")
+                ?: extras?.getString("google.c.a.m_l")
+            if (title != null && (!data.containsKey("title") || data["title"]?.toString()?.isEmpty() == true)) {
+                data["title"] = title
+            }
+            if (body != null && (!data.containsKey("body") || data["body"]?.toString()?.isEmpty() == true)) {
+                data["body"] = body
+            }
+            if (intent.action != null) {
+                data["action"] = intent.action
+            }
+            pendingNotificationData = data
         }
     }
 
     private fun notifyFlutterIfNeeded() {
         if (!pendingOpenNotifications) return
-        methodChannel?.invokeMethod("opened", null)
+        val data = pendingNotificationData ?: emptyMap<String, Any?>()
+        pendingOpenNotifications = false
+        pendingNotificationData = null
+        runOnUiThread {
+            methodChannel?.invokeMethod("opened", data)
+        }
     }
 
     private fun ensureChannel() {
@@ -193,13 +237,26 @@ class MainActivity : FlutterActivity() {
         manager.createNotificationChannel(channel)
     }
 
-    private fun showNotification(title: String, body: String) {
+    private fun showNotification(
+        title: String,
+        body: String,
+        notificationId: String? = null,
+        extraData: Map<String, Any?>? = null
+    ) {
         ensureChannel()
         val tapIntent = Intent(this, MainActivity::class.java).apply {
             action = "FLUTTER_NOTIFICATION_CLICK"
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("open_notifications", true)
             putExtra("open", "notifications")
+            putExtra("title", title)
+            putExtra("body", body)
+            if (notificationId != null) {
+                putExtra("notification_id", notificationId)
+            }
+            extraData?.forEach { (k, v) ->
+                if (v != null) putExtra(k, v.toString())
+            }
         }
         val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -207,9 +264,10 @@ class MainActivity : FlutterActivity() {
             } else {
                 0
             }
+        val notifCode = (title + body).hashCode()
         val pendingIntent = PendingIntent.getActivity(
             this,
-            title.hashCode(),
+            notifCode,
             tapIntent,
             pendingFlags,
         )
@@ -223,7 +281,7 @@ class MainActivity : FlutterActivity() {
             .setAutoCancel(true)
             .build()
         try {
-            NotificationManagerCompat.from(this).notify(title.hashCode(), notification)
+            NotificationManagerCompat.from(this).notify(notifCode, notification)
         } catch (_: SecurityException) {
             // Notification permission not granted yet.
         }
