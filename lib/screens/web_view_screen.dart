@@ -719,6 +719,12 @@ class WebViewScreenState extends State<WebViewScreen>
           manager_members: ['manager_dashboard_02_A_OPEN'],
           manager_claims: ['manager_dashboard_03_A_OPEN'],
           manager_payment: ['manager_dashboard_04_A_OPEN'],
+          manager_send_payment: ['openMgrSendPaymentModal', 'Manager_dashboard_04_B_send_payment_open'],
+          manager_return_float: ['openMgrReturnModal', 'Manager_dashboard_04_C_return_balance_open'],
+          manager_owner_payments: ['manager_dashboard_04_D_OPEN'],
+          manager_cheques: ['manager_dashboard_05_A_OPEN'],
+          manager_checks: ['manager_dashboard_05_A_OPEN'],
+          manager_categories: ['manager_dashboard_07_A_OPEN'],
           manager_vehicles: ['manager_dashboard_08_A_OPEN'],
           manager_settings: ['manager_dashboard_06_A_OPEN'],
 
@@ -835,6 +841,12 @@ class WebViewScreenState extends State<WebViewScreen>
           manager_members: 'assigned_members',
           manager_claims: 'expenses',
           manager_payment: 'payments',
+          manager_send_payment: 'payments',
+          manager_return_float: 'return_float',
+          manager_owner_payments: 'owner_payments',
+          manager_cheques: 'checks',
+          manager_checks: 'checks',
+          manager_categories: 'categories',
           manager_vehicles: 'vehicles',
           manager_settings: 'settings'
         };
@@ -1576,6 +1588,48 @@ class WebViewScreenState extends State<WebViewScreen>
             if (typeof cash_owner_dashboard_01_A_OPEN === 'function') {
               cash_owner_dashboard_01_A_OPEN();
               return 'handled';
+            }
+          }
+
+          // Manager modals & subpanels back handling
+          var mSend = document.getElementById("mgrSendPaymentModal");
+          if (mSend && mSend.style.display !== "none") {
+            if (typeof Manager_dashboard_04_B_send_payment_close === 'function') {
+              Manager_dashboard_04_B_send_payment_close();
+              return 'handled';
+            }
+          }
+          var mRet = document.getElementById("mgrReturnBalanceModal");
+          if (mRet && mRet.style.display !== "none") {
+            if (typeof Manager_dashboard_04_C_return_balance_close === 'function') {
+              Manager_dashboard_04_C_return_balance_close();
+              return 'handled';
+            }
+          }
+          var mCat = document.getElementById("mgrAddCategoryModal");
+          if (mCat && mCat.style.display !== "none") {
+            if (typeof Manager_dashboard_07_B_add_category_close === 'function') {
+              Manager_dashboard_07_B_add_category_close();
+              return 'handled';
+            }
+          }
+          var mgrSubpanels = [
+            'Manager_dashboard_02_A',
+            'Manager_dashboard_03_A',
+            'Manager_dashboard_04_A',
+            'Manager_dashboard_04_D',
+            'Manager_dashboard_05_A',
+            'Manager_dashboard_06_A',
+            'Manager_dashboard_07_A',
+            'Manager_dashboard_08_A'
+          ];
+          for (var mi = 0; mi < mgrSubpanels.length; mi++) {
+            var mp = document.getElementById(mgrSubpanels[mi]);
+            if (mp && mp.style.display !== 'none') {
+              if (typeof manager_dashboard_01_A_OPEN === 'function') {
+                manager_dashboard_01_A_OPEN();
+                return 'handled';
+              }
             }
           }
           return 'unhandled';

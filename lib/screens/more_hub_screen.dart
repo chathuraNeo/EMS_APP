@@ -52,13 +52,17 @@ class MoreHubScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   _buildAnalyticsGrid(context),
                 ] else if (currentRole == UserRole.manager) ...[
-                  _buildSectionTitle('Manager Suite', 'Field supervision & operations'),
+                  _buildSectionTitle('Field Operations Suite', 'Supervise field members & audit expenses'),
                   const SizedBox(height: 10),
                   _buildManagerHeroGrid(context),
                   const SizedBox(height: 22),
-                  _buildSectionTitle('Team & Fleet Operations', 'Audit field members & vehicle trips'),
+                  _buildSectionTitle('Float Payouts & Owner Balance', 'Disburse cash, track owner top-ups & returns'),
                   const SizedBox(height: 10),
-                  _buildManagerOperationsGrid(context),
+                  _buildManagerFloatGrid(context),
+                  const SizedBox(height: 22),
+                  _buildSectionTitle('Cheques, Fleet & Categories', 'Cheque register, fleet trips & expense tags'),
+                  const SizedBox(height: 10),
+                  _buildManagerLogisticsGrid(context),
                 ] else ...[
                   _buildSectionTitle('Member Float Portal', 'Personal float, expenses & fleet'),
                   const SizedBox(height: 10),
@@ -79,6 +83,36 @@ class MoreHubScreen extends StatelessWidget {
 
   Widget _buildSliverAppBar(BuildContext context) {
     final roleName = currentRole.displayName;
+    final (headerTitle, headerSub, headerGradient, headerIcon, badgeBg, badgeBorder, badgeText) = switch (currentRole) {
+      UserRole.manager => (
+        'Manager Hub',
+        'Field Supervision & Operations Suite',
+        const [Color(0xFF0F766E), Color(0xFF0D9488)],
+        Icons.manage_accounts_rounded,
+        const Color(0xFFF0FDFA),
+        const Color(0xFF99F6E4),
+        const Color(0xFF0F766E),
+      ),
+      UserRole.member => (
+        'Member Portal',
+        'Personal Float, Claims & Fleet',
+        const [Color(0xFF065F46), Color(0xFF059669)],
+        Icons.account_balance_wallet_rounded,
+        const Color(0xFFF0FDF4),
+        const Color(0xFFBBF7D0),
+        const Color(0xFF15803D),
+      ),
+      _ => (
+        'Operations Hub',
+        '$roleName Executive Suite',
+        const [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+        Icons.grid_view_rounded,
+        const Color(0xFFEFF6FF),
+        const Color(0xFFBFDBFE),
+        const Color(0xFF1D4ED8),
+      ),
+    };
+
     return SliverAppBar(
       pinned: true,
       elevation: 0,
@@ -93,22 +127,22 @@ class MoreHubScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                gradient: LinearGradient(
+                  colors: headerGradient,
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(10),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x262563EB),
+                    color: headerGradient.last.withValues(alpha: 0.15),
                     blurRadius: 8,
-                    offset: Offset(0, 3),
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.grid_view_rounded,
+              child: Icon(
+                headerIcon,
                 color: Colors.white,
                 size: 18,
               ),
@@ -119,9 +153,9 @@ class MoreHubScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Operations Hub',
-                    style: TextStyle(
+                  Text(
+                    headerTitle,
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF0F172A),
@@ -129,7 +163,7 @@ class MoreHubScreen extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '$roleName Executive Suite',
+                    headerSub,
                     style: const TextStyle(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
@@ -142,9 +176,9 @@ class MoreHubScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
+                color: badgeBg,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
+                border: Border.all(color: badgeBorder),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -152,18 +186,18 @@ class MoreHubScreen extends StatelessWidget {
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2563EB),
+                    decoration: BoxDecoration(
+                      color: badgeText,
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 5),
                   Text(
                     roleName.toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1D4ED8),
+                      color: badgeText,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -177,67 +211,155 @@ class MoreHubScreen extends StatelessWidget {
   }
 
   Widget _buildQuickActionChips(BuildContext context) {
+    final chips = switch (currentRole) {
+      UserRole.manager => [
+        _buildQuickChip(
+          icon: Icons.people_alt_rounded,
+          label: 'Members',
+          color: const Color(0xFF0D9488),
+          onTap: () => onOpenSection('manager_members'),
+        ),
+        _buildQuickChip(
+          icon: Icons.receipt_long_rounded,
+          label: 'Claims',
+          color: const Color(0xFFE11D48),
+          onTap: () => onOpenSection('manager_claims'),
+        ),
+        _buildQuickChip(
+          icon: Icons.payments_rounded,
+          label: 'Disburse',
+          color: const Color(0xFF059669),
+          onTap: () => onOpenSection('manager_payment'),
+        ),
+        _buildQuickChip(
+          icon: Icons.send_rounded,
+          label: 'Send Float',
+          color: const Color(0xFF10B981),
+          onTap: () => onOpenSection('manager_send_payment'),
+        ),
+        _buildQuickChip(
+          icon: Icons.fact_check_rounded,
+          label: 'Cheques',
+          color: const Color(0xFF2563EB),
+          onTap: () => onOpenSection('manager_cheques'),
+        ),
+        _buildQuickChip(
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Owner Top-ups',
+          color: const Color(0xFF7C3AED),
+          onTap: () => onOpenSection('manager_owner_payments'),
+        ),
+        _buildQuickChip(
+          icon: Icons.directions_car_rounded,
+          label: 'Trips',
+          color: const Color(0xFFEA580C),
+          onTap: () => onOpenSection('manager_vehicles'),
+        ),
+        _buildQuickChip(
+          icon: Icons.category_rounded,
+          label: 'Categories',
+          color: const Color(0xFF4F46E5),
+          onTap: () => onOpenSection('manager_categories'),
+        ),
+        _buildQuickChip(
+          icon: Icons.assignment_return_rounded,
+          label: 'Return Float',
+          color: const Color(0xFFD97706),
+          onTap: () => onOpenSection('manager_return_float'),
+        ),
+      ],
+      UserRole.member => [
+        _buildQuickChip(
+          icon: Icons.receipt_long_rounded,
+          label: 'My Claims',
+          color: const Color(0xFF059669),
+          onTap: () => onOpenSection('member_claims'),
+        ),
+        _buildQuickChip(
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'My Funds',
+          color: const Color(0xFF2563EB),
+          onTap: () => onOpenSection('member_funds'),
+        ),
+        _buildQuickChip(
+          icon: Icons.assignment_return_rounded,
+          label: 'Return',
+          color: const Color(0xFFD97706),
+          onTap: () => onOpenSection('member_return'),
+        ),
+        _buildQuickChip(
+          icon: Icons.directions_car_rounded,
+          label: 'Vehicles',
+          color: const Color(0xFF7C3AED),
+          onTap: () => onOpenSection('member_vehicles'),
+        ),
+        _buildQuickChip(
+          icon: Icons.home_rounded,
+          label: 'Home',
+          color: const Color(0xFF0F766E),
+          onTap: () => onOpenSection('member_home'),
+        ),
+      ],
+      _ => [
+        _buildQuickChip(
+          icon: Icons.fact_check_rounded,
+          label: 'Cheques',
+          color: const Color(0xFF2563EB),
+          onTap: () => onOpenSection('cash_owner_cheques'),
+        ),
+        _buildQuickChip(
+          icon: Icons.manage_accounts_rounded,
+          label: 'User Admin',
+          color: const Color(0xFF059669),
+          onTap: () => onOpenSection('cash_owner_users'),
+        ),
+        _buildQuickChip(
+          icon: Icons.swap_horiz_rounded,
+          label: 'Transfer',
+          color: const Color(0xFF7C3AED),
+          onTap: () => onOpenSection('cash_owner_wallet_transfer'),
+        ),
+        _buildQuickChip(
+          icon: Icons.account_balance_rounded,
+          label: 'Banks',
+          color: const Color(0xFF0284C7),
+          onTap: () => onOpenSection('cash_owner_banks'),
+        ),
+        _buildQuickChip(
+          icon: Icons.analytics_rounded,
+          label: 'Reports',
+          color: const Color(0xFFE11D48),
+          onTap: () => onOpenSection('cash_owner_reports'),
+        ),
+        _buildQuickChip(
+          icon: Icons.directions_car_rounded,
+          label: 'Trips',
+          color: const Color(0xFFD97706),
+          onTap: () => onOpenSection('cash_owner_vehicles'),
+        ),
+        _buildQuickChip(
+          icon: Icons.notifications_rounded,
+          label: 'Notices',
+          color: const Color(0xFF0284C7),
+          onTap: () => onOpenSection('cash_owner_notifications'),
+        ),
+        _buildQuickChip(
+          icon: Icons.notification_add_rounded,
+          label: '+ Notice',
+          color: const Color(0xFFD97706),
+          onTap: () => onOpenSection('cash_owner_add_notification'),
+        ),
+      ],
+    };
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
         children: [
-          _buildQuickChip(
-            icon: Icons.fact_check_rounded,
-            label: 'Cheques',
-            color: const Color(0xFF2563EB),
-            onTap: () => onOpenSection('cash_owner_cheques'),
-          ),
-          const SizedBox(width: 8),
-          _buildQuickChip(
-            icon: Icons.manage_accounts_rounded,
-            label: 'User Admin',
-            color: const Color(0xFF059669),
-            onTap: () => onOpenSection('cash_owner_users'),
-          ),
-          const SizedBox(width: 8),
-          _buildQuickChip(
-            icon: Icons.swap_horiz_rounded,
-            label: 'Transfer',
-            color: const Color(0xFF7C3AED),
-            onTap: () => onOpenSection('cash_owner_wallet_transfer'),
-          ),
-          const SizedBox(width: 8),
-          _buildQuickChip(
-            icon: Icons.account_balance_rounded,
-            label: 'Banks',
-            color: const Color(0xFF0284C7),
-            onTap: () => onOpenSection('cash_owner_banks'),
-          ),
-          const SizedBox(width: 8),
-          _buildQuickChip(
-            icon: Icons.analytics_rounded,
-            label: 'Reports',
-            color: const Color(0xFFE11D48),
-            onTap: () => onOpenSection('cash_owner_reports'),
-          ),
-          const SizedBox(width: 8),
-          _buildQuickChip(
-            icon: Icons.directions_car_rounded,
-            label: 'Trips',
-            color: const Color(0xFFD97706),
-            onTap: () => onOpenSection('cash_owner_vehicles'),
-          ),
-          if (currentRole == UserRole.cashOwner || currentRole == UserRole.unknown) ...[
-            const SizedBox(width: 8),
-            _buildQuickChip(
-              icon: Icons.notifications_rounded,
-              label: 'Notices',
-              color: const Color(0xFF0284C7),
-              onTap: () => onOpenSection('cash_owner_notifications'),
-            ),
-            const SizedBox(width: 8),
-            _buildQuickChip(
-              icon: Icons.notification_add_rounded,
-              label: '+ Notice',
-              color: const Color(0xFFD97706),
-              onTap: () => onOpenSection('cash_owner_add_notification'),
-            ),
+          for (int i = 0; i < chips.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            chips[i],
           ],
         ],
       ),
@@ -565,46 +687,79 @@ class MoreHubScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _buildHeroCard(
-          title: 'Vehicle & Trip Fleet',
-          badge: 'Fleet',
-          subtitle: 'Dispatch vehicles, review trip logs, audit fuel consumption',
-          icon: Icons.directions_car_filled_rounded,
-          gradient: const [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
-          onTap: () => onOpenSection('manager_vehicles'),
+          title: 'Member Claims Audit',
+          badge: 'Approvals',
+          subtitle: 'Review member expense claims, audit receipts & approval statuses',
+          icon: Icons.receipt_long_rounded,
+          gradient: const [Color(0xFF065F46), Color(0xFF059669)],
+          onTap: () => onOpenSection('manager_claims'),
         ),
       ],
     );
   }
 
-  Widget _buildManagerOperationsGrid(BuildContext context) {
+  Widget _buildManagerFloatGrid(BuildContext context) {
     return _buildCardGrid([
       _HubItem(
-        title: 'Claims Audit',
-        subtitle: 'Inspect submitted receipts',
-        icon: Icons.receipt_long_rounded,
-        color: const Color(0xFFE11D48),
-        action: 'manager_claims',
-      ),
-      _HubItem(
-        title: 'Disbursements',
-        subtitle: 'Float payouts & transfers',
+        title: 'Disburse Float',
+        subtitle: 'Member disbursements ledger',
         icon: Icons.payments_rounded,
         color: const Color(0xFF059669),
         action: 'manager_payment',
       ),
       _HubItem(
-        title: 'Operations Dashboard',
-        subtitle: 'Summary & team activity',
-        icon: Icons.dashboard_rounded,
-        color: const Color(0xFF2563EB),
-        action: 'manager_home',
+        title: 'Send Float Payout',
+        subtitle: 'Issue new float funds to member',
+        icon: Icons.send_rounded,
+        color: const Color(0xFF10B981),
+        action: 'manager_send_payment',
       ),
       _HubItem(
-        title: 'Manager Settings',
-        subtitle: 'Portal profile & security',
-        icon: Icons.tune_rounded,
-        color: const Color(0xFF475569),
-        action: 'manager_settings',
+        title: 'Owner Top-ups',
+        subtitle: 'Credits received & balance history',
+        icon: Icons.account_balance_wallet_rounded,
+        color: const Color(0xFF7C3AED),
+        action: 'manager_owner_payments',
+      ),
+      _HubItem(
+        title: 'Return Float Balance',
+        subtitle: 'Settle remaining float to owner',
+        icon: Icons.assignment_return_rounded,
+        color: const Color(0xFFD97706),
+        action: 'manager_return_float',
+      ),
+    ]);
+  }
+
+  Widget _buildManagerLogisticsGrid(BuildContext context) {
+    return _buildCardGrid([
+      _HubItem(
+        title: 'Cheque Register',
+        subtitle: 'Cheque vouchers & clearances',
+        icon: Icons.fact_check_rounded,
+        color: const Color(0xFF2563EB),
+        action: 'manager_cheques',
+      ),
+      _HubItem(
+        title: 'Vehicle Fleet & Trips',
+        subtitle: 'Vehicle dispatches & fuel logs',
+        icon: Icons.directions_car_filled_rounded,
+        color: const Color(0xFFEA580C),
+        action: 'manager_vehicles',
+      ),
+      _HubItem(
+        title: 'Expense Categories',
+        subtitle: 'Cost allocation tags & codes',
+        icon: Icons.category_rounded,
+        color: const Color(0xFF4F46E5),
+        action: 'manager_categories',
+      ),
+      _HubItem(
+        title: 'Operations Summary',
+        subtitle: 'Live manager dashboard overview',
+        icon: Icons.dashboard_rounded,
+        color: const Color(0xFF0D9488),
+        action: 'manager_home',
       ),
     ]);
   }
@@ -658,15 +813,55 @@ class MoreHubScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _buildSettingsTile(
-            icon: Icons.tune_rounded,
-            color: const Color(0xFF2563EB),
-            title: 'Site Settings & Customization',
-            subtitle: 'Company logo, theme color & currency symbol',
-            onTap: () => onOpenSection('cash_owner_settings'),
-          ),
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-          if (currentRole == UserRole.cashOwner || currentRole == UserRole.unknown) ...[
+          if (currentRole == UserRole.manager) ...[
+            _buildSettingsTile(
+              icon: Icons.tune_rounded,
+              color: const Color(0xFF0F766E),
+              title: 'Manager Settings & Profile',
+              subtitle: 'Change portal password & contact information',
+              onTap: () => onOpenSection('manager_settings'),
+            ),
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+            _buildSettingsTile(
+              icon: Icons.notifications_none_rounded,
+              color: const Color(0xFF059669),
+              title: 'Push Notifications',
+              subtitle: 'System alerts, disbursements & team activity',
+              onTap: onOpenNotifications ?? () {},
+            ),
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+            _buildSettingsTile(
+              icon: Icons.refresh_rounded,
+              color: const Color(0xFF0D9488),
+              title: 'Refresh Manager Session',
+              subtitle: 'Reload latest assigned team and float balances',
+              onTap: () => onOpenSection('manager_home'),
+            ),
+          ] else if (currentRole == UserRole.member) ...[
+            _buildSettingsTile(
+              icon: Icons.notifications_none_rounded,
+              color: const Color(0xFF059669),
+              title: 'Push Notifications',
+              subtitle: 'System alerts, float payouts & claim approvals',
+              onTap: onOpenNotifications ?? () {},
+            ),
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+            _buildSettingsTile(
+              icon: Icons.refresh_rounded,
+              color: const Color(0xFF2563EB),
+              title: 'Refresh Member Session',
+              subtitle: 'Reload assigned float statement and trip logs',
+              onTap: () => onOpenSection('member_home'),
+            ),
+          ] else ...[
+            _buildSettingsTile(
+              icon: Icons.tune_rounded,
+              color: const Color(0xFF2563EB),
+              title: 'Site Settings & Customization',
+              subtitle: 'Company logo, theme color & currency symbol',
+              onTap: () => onOpenSection('cash_owner_settings'),
+            ),
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
             _buildSettingsTile(
               icon: Icons.notifications_rounded,
               color: const Color(0xFF0284C7),
@@ -690,23 +885,15 @@ class MoreHubScreen extends StatelessWidget {
               subtitle: 'Your device push alerts & status activity',
               onTap: onOpenNotifications ?? () {},
             ),
-          ] else ...[
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
             _buildSettingsTile(
-              icon: Icons.notifications_none_rounded,
-              color: const Color(0xFF059669),
-              title: 'Push Notifications',
-              subtitle: 'System alerts, payouts & claims activity',
-              onTap: onOpenNotifications ?? () {},
+              icon: Icons.refresh_rounded,
+              color: const Color(0xFF7C3AED),
+              title: 'Refresh Session',
+              subtitle: 'Reload latest financial records and balances',
+              onTap: () => onOpenSection('cash_owner_home'),
             ),
           ],
-          const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-          _buildSettingsTile(
-            icon: Icons.refresh_rounded,
-            color: const Color(0xFF7C3AED),
-            title: 'Refresh Session',
-            subtitle: 'Reload latest financial records and balances',
-            onTap: () => onOpenSection('cash_owner_home'),
-          ),
         ],
       ),
     );
