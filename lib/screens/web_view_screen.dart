@@ -707,6 +707,12 @@ class WebViewScreenState extends State<WebViewScreen>
           cash_owner_categories: ['cash_owner_dashboard_07_A_OPEN'],
           cash_owner_topup_history: ['cash_owner_dashboard_09_A_OPEN'],
           cash_owner_wallet_audit: ['cash_owner_dashboard_09_B_OPEN'],
+          cash_owner_notifications: ['cash_owner_dashboard_14_A_OPEN'],
+          cash_owner_add_notification: [
+            'cash_owner_dashboard_14_B_OPEN',
+            'openAddNotificationModal',
+            'Cash_owner_dashboard_14_B_add_notification_open'
+          ],
 
           // Manager section actions
           manager_home: ['manager_dashboard_01_A_OPEN'],
@@ -757,6 +763,14 @@ class WebViewScreenState extends State<WebViewScreen>
             'member_dashboard_06_A_OPEN',
             'manager_dashboard_08_A_OPEN',
             'cash_owner_dashboard_13_A_OPEN'
+          ],
+          notifications: [
+            'cash_owner_dashboard_14_A_OPEN'
+          ],
+          add_notification: [
+            'cash_owner_dashboard_14_B_OPEN',
+            'openAddNotificationModal',
+            'Cash_owner_dashboard_14_B_add_notification_open'
           ]
         };
 
@@ -776,6 +790,7 @@ class WebViewScreenState extends State<WebViewScreen>
                   if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
                   if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') Member_dashboard_02_A_expenses_list_SET_DB(1);
                   if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') Member_dashboard_03_A_funds_received_list_SET_DB(1);
+                  if (typeof cash_owner_dashboard_14_A_FETCH === 'function') cash_owner_dashboard_14_A_FETCH();
                 } catch (err) {}
               }
               return 'ok';
@@ -812,6 +827,10 @@ class WebViewScreenState extends State<WebViewScreen>
           cash_owner_categories: 'categories',
           cash_owner_topup_history: 'topup_history',
           cash_owner_wallet_audit: 'wallet_audit',
+          cash_owner_notifications: 'notifications',
+          cash_owner_add_notification: 'add_notification',
+          notifications: 'notifications',
+          add_notification: 'add_notification',
           manager_home: 'summary',
           manager_members: 'assigned_members',
           manager_claims: 'expenses',
@@ -1156,34 +1175,40 @@ class WebViewScreenState extends State<WebViewScreen>
   static const String _fileUploadFixScript = '''
     (function(){
       function patchFileInputs() {
-        var input = document.getElementById('ud2d-file-input');
-        var dropzone = document.getElementById('ud2d-dropzone');
-        if (!input) return;
-        input.setAttribute('accept', input.getAttribute('accept') || 'image/*');
-        if (dropzone) {
-          var style = window.getComputedStyle(dropzone);
-          if (style.position === 'static') {
-            dropzone.style.position = 'relative';
+        var targets = [
+          { inputId: 'ud2d-file-input', dropzoneId: 'ud2d-dropzone' },
+          { inputId: 'notifImageFileInput', dropzoneId: 'notifImageDropzone' }
+        ];
+        for (var i = 0; i < targets.length; i++) {
+          var input = document.getElementById(targets[i].inputId);
+          var dropzone = document.getElementById(targets[i].dropzoneId);
+          if (!input) continue;
+          input.setAttribute('accept', input.getAttribute('accept') || 'image/*');
+          if (dropzone) {
+            var style = window.getComputedStyle(dropzone);
+            if (style.position === 'static') {
+              dropzone.style.position = 'relative';
+            }
+            dropzone.removeAttribute('onclick');
+            dropzone.onclick = null;
+            if (input.parentElement !== dropzone) {
+              dropzone.appendChild(input);
+            }
           }
-          dropzone.removeAttribute('onclick');
-          dropzone.onclick = null;
-          if (input.parentElement !== dropzone) {
-            dropzone.appendChild(input);
-          }
+          input.style.setProperty('display', 'block', 'important');
+          input.style.setProperty('opacity', '0.011', 'important');
+          input.style.setProperty('position', 'absolute', 'important');
+          input.style.setProperty('left', '0', 'important');
+          input.style.setProperty('top', '0', 'important');
+          input.style.setProperty('width', '100%', 'important');
+          input.style.setProperty('height', '100%', 'important');
+          input.style.setProperty('z-index', '6', 'important');
+          input.style.setProperty('cursor', 'pointer', 'important');
+          input.style.setProperty('font-size', '64px', 'important');
+          input.style.setProperty('margin', '0', 'important');
+          input.style.setProperty('padding', '0', 'important');
+          input.setAttribute('data-ems-file-ready', '1');
         }
-        input.style.setProperty('display', 'block', 'important');
-        input.style.setProperty('opacity', '0.011', 'important');
-        input.style.setProperty('position', 'absolute', 'important');
-        input.style.setProperty('left', '0', 'important');
-        input.style.setProperty('top', '0', 'important');
-        input.style.setProperty('width', '100%', 'important');
-        input.style.setProperty('height', '100%', 'important');
-        input.style.setProperty('z-index', '6', 'important');
-        input.style.setProperty('cursor', 'pointer', 'important');
-        input.style.setProperty('font-size', '64px', 'important');
-        input.style.setProperty('margin', '0', 'important');
-        input.style.setProperty('padding', '0', 'important');
-        input.setAttribute('data-ems-file-ready', '1');
       }
       patchFileInputs();
       if (!window.__emsFilePatchObs) {
@@ -1536,6 +1561,30 @@ class WebViewScreenState extends State<WebViewScreen>
       return true;
     }
     if (!_online) return false;
+    try {
+      final res = await _controller.runJavaScriptReturningResult('''
+        (function() {
+          var b14 = document.getElementById("Cash_owner_dashboard_14_B");
+          if (b14 && b14.style.display !== "none") {
+            if (typeof Cash_owner_dashboard_14_B_add_notification_close === 'function') {
+              Cash_owner_dashboard_14_B_add_notification_close();
+              return 'handled';
+            }
+          }
+          var a14 = document.getElementById("Cash_owner_dashboard_14_A");
+          if (a14 && a14.style.display !== "none") {
+            if (typeof cash_owner_dashboard_01_A_OPEN === 'function') {
+              cash_owner_dashboard_01_A_OPEN();
+              return 'handled';
+            }
+          }
+          return 'unhandled';
+        })()
+      ''');
+      if (res.toString().contains('handled')) {
+        return true;
+      }
+    } catch (_) {}
     if (await _controller.canGoBack()) {
       await _controller.goBack();
       return true;

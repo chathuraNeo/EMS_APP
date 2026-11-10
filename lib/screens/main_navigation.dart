@@ -215,6 +215,12 @@ class _MainNavigationState extends State<MainNavigation> {
         _currentIndex = matchingIdx;
         _lastWebIndex = matchingIdx;
       } else {
+        if (_lastWebIndex < 0 ||
+            _lastWebIndex >= items.length ||
+            items[_lastWebIndex].isNotification ||
+            items[_lastWebIndex].isMore) {
+          _lastWebIndex = 0;
+        }
         _currentIndex = _lastWebIndex;
       }
       _paymentListVisible = sectionKey.contains('payment');
@@ -307,6 +313,12 @@ class _MainNavigationState extends State<MainNavigation> {
                     NotificationScreen(
                       onClose: !_showNavigation
                           ? () => setState(() => _currentIndex = _lastWebIndex)
+                          : null,
+                      onOpenWebNotifications: _currentRole == UserRole.cashOwner
+                          ? () => _openSectionFromHub('cash_owner_notifications')
+                          : null,
+                      onOpenAddNotification: _currentRole == UserRole.cashOwner
+                          ? () => _openSectionFromHub('cash_owner_add_notification')
                           : null,
                     ),
                   if (_showNavigation && _isMoreActive)

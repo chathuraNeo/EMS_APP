@@ -6,9 +6,16 @@ import '../services/push_notification_service.dart';
 import '../widgets/notification_image.dart';
 
 class NotificationScreen extends StatefulWidget {
-  const NotificationScreen({super.key, this.onClose});
+  const NotificationScreen({
+    super.key,
+    this.onClose,
+    this.onOpenWebNotifications,
+    this.onOpenAddNotification,
+  });
 
   final VoidCallback? onClose;
+  final VoidCallback? onOpenWebNotifications;
+  final VoidCallback? onOpenAddNotification;
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -114,9 +121,67 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const Spacer(),
+                  if (widget.onOpenAddNotification != null) ...[
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: widget.onOpenAddNotification,
+                      icon: const Icon(Icons.notification_add_rounded, size: 16),
+                      label: const Text('Add Notice', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  if (widget.onOpenWebNotifications != null) ...[
+                    IconButton(
+                      tooltip: 'Web Broadcast Center',
+                      icon: const Icon(Icons.list_alt_rounded, color: AppTheme.ink, size: 22),
+                      onPressed: widget.onOpenWebNotifications,
+                    ),
+                  ],
                 ],
               ),
             ),
+            if (widget.onOpenWebNotifications != null || widget.onOpenAddNotification != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.campaign_outlined, color: Color(0xFF2563EB), size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Cash Owner Broadcast Center',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                      if (widget.onOpenWebNotifications != null)
+                        InkWell(
+                          onTap: widget.onOpenWebNotifications,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: Text(
+                              'View List',
+                              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB)),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             Expanded(
               child: RefreshIndicator(
                 color: AppTheme.green700,

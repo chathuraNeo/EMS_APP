@@ -40,6 +40,10 @@ class MoreHubScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   _buildBankingGrid(context),
                   const SizedBox(height: 22),
+                  _buildSectionTitle('Broadcasts & Member Notices', 'Compose alerts & inspect notification history'),
+                  const SizedBox(height: 10),
+                  _buildNotificationsGrid(context),
+                  const SizedBox(height: 22),
                   _buildSectionTitle('Audits & Governance', 'Field balances & reconciliations'),
                   const SizedBox(height: 10),
                   _buildAuditsGrid(context),
@@ -219,6 +223,22 @@ class MoreHubScreen extends StatelessWidget {
             color: const Color(0xFFD97706),
             onTap: () => onOpenSection('cash_owner_vehicles'),
           ),
+          if (currentRole == UserRole.cashOwner || currentRole == UserRole.unknown) ...[
+            const SizedBox(width: 8),
+            _buildQuickChip(
+              icon: Icons.notifications_rounded,
+              label: 'Notices',
+              color: const Color(0xFF0284C7),
+              onTap: () => onOpenSection('cash_owner_notifications'),
+            ),
+            const SizedBox(width: 8),
+            _buildQuickChip(
+              icon: Icons.notification_add_rounded,
+              label: '+ Notice',
+              color: const Color(0xFFD97706),
+              onTap: () => onOpenSection('cash_owner_add_notification'),
+            ),
+          ],
         ],
       ),
     );
@@ -457,6 +477,26 @@ class MoreHubScreen extends StatelessWidget {
     ]);
   }
 
+  // Broadcasts & Notifications Grid
+  Widget _buildNotificationsGrid(BuildContext context) {
+    return _buildCardGrid([
+      _HubItem(
+        title: 'Notification List',
+        subtitle: 'Broadcast history & member notices',
+        icon: Icons.notifications_rounded,
+        color: const Color(0xFF0284C7),
+        action: 'cash_owner_notifications',
+      ),
+      _HubItem(
+        title: 'Add Notification',
+        subtitle: 'Compose & dispatch alerts to members',
+        icon: Icons.notification_add_rounded,
+        color: const Color(0xFFD97706),
+        action: 'cash_owner_add_notification',
+      ),
+    ]);
+  }
+
   // Audits Grid
   Widget _buildAuditsGrid(BuildContext context) {
     return _buildCardGrid([
@@ -626,13 +666,39 @@ class MoreHubScreen extends StatelessWidget {
             onTap: () => onOpenSection('cash_owner_settings'),
           ),
           const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-          _buildSettingsTile(
-            icon: Icons.notifications_none_rounded,
-            color: const Color(0xFF059669),
-            title: 'Push Notifications',
-            subtitle: 'System alerts, payouts & claims activity',
-            onTap: onOpenNotifications ?? () {},
-          ),
+          if (currentRole == UserRole.cashOwner || currentRole == UserRole.unknown) ...[
+            _buildSettingsTile(
+              icon: Icons.notifications_rounded,
+              color: const Color(0xFF0284C7),
+              title: 'Notification List (Web)',
+              subtitle: 'View broadcast history & member notice list',
+              onTap: () => onOpenSection('cash_owner_notifications'),
+            ),
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+            _buildSettingsTile(
+              icon: Icons.notification_add_rounded,
+              color: const Color(0xFFD97706),
+              title: 'Add New Notification (Web)',
+              subtitle: 'Send broadcast or targeted message to members',
+              onTap: () => onOpenSection('cash_owner_add_notification'),
+            ),
+            const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+            _buildSettingsTile(
+              icon: Icons.inbox_rounded,
+              color: const Color(0xFF059669),
+              title: 'Personal Notification Inbox',
+              subtitle: 'Your device push alerts & status activity',
+              onTap: onOpenNotifications ?? () {},
+            ),
+          ] else ...[
+            _buildSettingsTile(
+              icon: Icons.notifications_none_rounded,
+              color: const Color(0xFF059669),
+              title: 'Push Notifications',
+              subtitle: 'System alerts, payouts & claims activity',
+              onTap: onOpenNotifications ?? () {},
+            ),
+          ],
           const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
           _buildSettingsTile(
             icon: Icons.refresh_rounded,

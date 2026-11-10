@@ -85,6 +85,8 @@ class AppConfig {
   static const String paymentPage = 'payment';
   static const String payNowPage = 'pay_now';
   static const String settingsPage = 'settings';
+  static const String cashOwnerNotificationsPage = 'cash_owner_notifications';
+  static const String cashOwnerAddNotificationPage = 'cash_owner_add_notification';
 
   static const String logoAsset = 'assets/logo.png';
   static const String footerAsset = '';
