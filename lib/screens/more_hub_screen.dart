@@ -9,11 +9,13 @@ class MoreHubScreen extends StatelessWidget {
     required this.currentRole,
     required this.onOpenSection,
     this.onOpenNotifications,
+    this.onClose,
   });
 
   final UserRole currentRole;
   final ValueChanged<String> onOpenSection;
   final VoidCallback? onOpenNotifications;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +126,26 @@ class MoreHubScreen extends StatelessWidget {
         titlePadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         title: Row(
           children: [
+            if (onClose != null) ...[
+              GestureDetector(
+                onTap: onClose,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Color(0xFF0F172A),
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(

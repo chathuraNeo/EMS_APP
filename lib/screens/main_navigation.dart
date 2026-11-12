@@ -243,9 +243,54 @@ class _MainNavigationState extends State<MainNavigation> {
     _webKey.currentState?.openSiteSection(AppConfig.payNowPage);
   }
 
+  void _closeMoreHubAndReload() {
+    final items = _navItems;
+    final targetIndex = (_lastWebIndex >= 0 && _lastWebIndex < items.length)
+        ? _lastWebIndex
+        : 0;
+    final targetItem = items.isNotEmpty ? items[targetIndex] : null;
+
+    setState(() {
+      _currentIndex = targetIndex;
+      if (targetItem != null &&
+          (targetItem.sectionKey == 'payment' || targetItem.sectionKey.contains('payment'))) {
+        _paymentListVisible = true;
+      }
+    });
+
+    if (targetItem != null &&
+        !targetItem.isMore &&
+        !targetItem.isNotification &&
+        targetItem.sectionKey.isNotEmpty) {
+      _webKey.currentState?.openSiteSection(targetItem.sectionKey, refreshData: true);
+    } else {
+      _webKey.currentState?.reload();
+    }
+  }
+
   Future<void> _onPopAttempt() async {
-    if (_isNotificationActive || _isMoreActive) {
-      setState(() => _currentIndex = _lastWebIndex);
+    if (_isMoreActive) {
+      _closeMoreHubAndReload();
+      return;
+    }
+
+    if (_isNotificationActive) {
+      final items = _navItems;
+      final targetIndex = (_lastWebIndex >= 0 && _lastWebIndex < items.length)
+          ? _lastWebIndex
+          : 0;
+      final targetItem = items.isNotEmpty ? items[targetIndex] : null;
+
+      setState(() => _currentIndex = targetIndex);
+
+      if (targetItem != null &&
+          !targetItem.isMore &&
+          !targetItem.isNotification &&
+          targetItem.sectionKey.isNotEmpty) {
+        _webKey.currentState?.openSiteSection(targetItem.sectionKey, refreshData: true);
+      } else {
+        _webKey.currentState?.reload();
+      }
       return;
     }
 
@@ -260,7 +305,7 @@ class _MainNavigationState extends State<MainNavigation> {
       });
       final items = _navItems;
       if (items.isNotEmpty && items[0].sectionKey.isNotEmpty) {
-        _webKey.currentState?.openSiteSection(items[0].sectionKey);
+        _webKey.currentState?.openSiteSection(items[0].sectionKey, refreshData: true);
       }
       return;
     }
@@ -311,9 +356,7 @@ class _MainNavigationState extends State<MainNavigation> {
                   ),
                   if (_isNotificationActive)
                     NotificationScreen(
-                      onClose: !_showNavigation
-                          ? () => setState(() => _currentIndex = _lastWebIndex)
-                          : null,
+                      onClose: _onPopAttempt,
                       onOpenWebNotifications: _currentRole == UserRole.cashOwner
                           ? () => _openSectionFromHub('cash_owner_notifications')
                           : null,
@@ -326,6 +369,7 @@ class _MainNavigationState extends State<MainNavigation> {
                       currentRole: _currentRole,
                       onOpenSection: _openSectionFromHub,
                       onOpenNotifications: _openNotificationTab,
+                      onClose: _closeMoreHubAndReload,
                     ),
                 ],
               ),

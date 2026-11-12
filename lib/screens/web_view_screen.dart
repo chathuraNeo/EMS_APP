@@ -607,7 +607,14 @@ class WebViewScreenState extends State<WebViewScreen>
 
   Future<void> openSiteSection(String page, {bool refreshData = true}) async {
     _pendingPage = page;
+    if (refreshData && mounted) {
+      setState(() => _isLoading = true);
+    }
     await _tryOpenPending(refreshData: refreshData);
+    if (refreshData && mounted) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _tryOpenPending({bool refreshData = true}) async {
@@ -683,6 +690,52 @@ class WebViewScreenState extends State<WebViewScreen>
       (function(){
         var target = ${jsonEncode(page)};
         var refresh = ${refreshData ? 'true' : 'false'};
+
+        function triggerDataRefresh() {
+          try {
+            // Member
+            if (typeof refreshAllMemberData === 'function') refreshAllMemberData();
+            if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') Member_dashboard_02_A_expenses_list_SET_DB(1);
+            if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') Member_dashboard_03_A_funds_received_list_SET_DB(1);
+            if (typeof member_dashboard_06_A_FETCH === 'function') member_dashboard_06_A_FETCH();
+
+            // Cash Owner
+            if (typeof loadExpensesList === 'function') loadExpensesList();
+            if (typeof loadPaymentsList === 'function') loadPaymentsList();
+            if (typeof loadBankAccountsList === 'function') loadBankAccountsList();
+            if (typeof loadCashAccountsList === 'function') loadCashAccountsList();
+            if (typeof loadMembersList === 'function') loadMembersList();
+            if (typeof loadCategoriesList === 'function') loadCategoriesList();
+            if (typeof loadTopupHistoryList === 'function') loadTopupHistoryList();
+            if (typeof loadAuditLogsList === 'function') loadAuditLogsList();
+            if (typeof loadUserAuditLogsList === 'function') loadUserAuditLogsList();
+            if (typeof loadManagersList === 'function') loadManagersList();
+            if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
+            if (typeof updateCharts === 'function') updateCharts();
+            if (typeof cash_owner_dashboard_10_A_FETCH === 'function') cash_owner_dashboard_10_A_FETCH();
+            if (typeof cash_owner_dashboard_11_A_FETCH === 'function') cash_owner_dashboard_11_A_FETCH();
+            if (typeof cash_owner_dashboard_12_A_FETCH === 'function') cash_owner_dashboard_12_A_FETCH();
+            if (typeof cash_owner_dashboard_13_A_FETCH === 'function') cash_owner_dashboard_13_A_FETCH();
+            if (typeof cash_owner_dashboard_14_A_FETCH === 'function') cash_owner_dashboard_14_A_FETCH();
+
+            // Manager
+            if (typeof manager_dashboard_01_A_FETCH === 'function') manager_dashboard_01_A_FETCH();
+            if (typeof Manager_dashboard_01_A_dashboard_summary_SET_DB === 'function') Manager_dashboard_01_A_dashboard_summary_SET_DB();
+            if (typeof manager_dashboard_02_A_FETCH === 'function') manager_dashboard_02_A_FETCH();
+            if (typeof manager_dashboard_03_A_FETCH === 'function') manager_dashboard_03_A_FETCH();
+            if (typeof manager_dashboard_04_A_FETCH === 'function') manager_dashboard_04_A_FETCH();
+            if (typeof manager_dashboard_04_D_FETCH === 'function') manager_dashboard_04_D_FETCH();
+            if (typeof manager_dashboard_05_A_FETCH === 'function') manager_dashboard_05_A_FETCH();
+            if (typeof manager_dashboard_06_A_FETCH === 'function') manager_dashboard_06_A_FETCH();
+            if (typeof manager_dashboard_08_A_FETCH === 'function') manager_dashboard_08_A_FETCH();
+            if (typeof fetchManagerAssignedMembers === 'function') fetchManagerAssignedMembers();
+            if (typeof fetchManagerExpenses === 'function') fetchManagerExpenses();
+            if (typeof fetchManagerPayments === 'function') fetchManagerPayments();
+            if (typeof fetchManagerProfile === 'function') fetchManagerProfile();
+            if (typeof updateMgrSidebarBadges === 'function') updateMgrSidebarBadges();
+          } catch(e) {}
+        }
+
         var actions = {
           // Member section actions
           member_home: ['member_dashboard_01_A_OPEN'],
@@ -787,17 +840,7 @@ class WebViewScreenState extends State<WebViewScreen>
             try {
               fn();
               if (refresh) {
-                try {
-                  if (typeof refreshAllMemberData === 'function') refreshAllMemberData();
-                  if (typeof updateCharts === 'function') updateCharts();
-                  if (typeof loadExpensesList === 'function') loadExpensesList();
-                  if (typeof loadPaymentsList === 'function') loadPaymentsList();
-                  if (typeof loadMembersList === 'function') loadMembersList();
-                  if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
-                  if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') Member_dashboard_02_A_expenses_list_SET_DB(1);
-                  if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') Member_dashboard_03_A_funds_received_list_SET_DB(1);
-                  if (typeof cash_owner_dashboard_14_A_FETCH === 'function') cash_owner_dashboard_14_A_FETCH();
-                } catch (err) {}
+                triggerDataRefresh();
               }
               return 'ok';
             } catch (e) {}
@@ -856,18 +899,21 @@ class WebViewScreenState extends State<WebViewScreen>
           || document.querySelector('[data-page="' + tab + '"]');
         if (navTab) {
           navTab.click();
+          if (refresh) triggerDataRefresh();
           return 'click';
         }
 
         var item = document.querySelector('.bmjm-sidebar-nav-item[data-page="' + tab + '"]');
         if (item) {
           item.click();
+          if (refresh) triggerDataRefresh();
           return 'click';
         }
 
         var link = document.querySelector('[data-page="' + tab + '"] a');
         if (link) {
           link.click();
+          if (refresh) triggerDataRefresh();
           return 'click';
         }
 
@@ -1516,24 +1562,118 @@ class WebViewScreenState extends State<WebViewScreen>
       final res = await _controller.runJavaScriptReturningResult('''
         (function(){
           var refreshed = false;
-          if (typeof refreshAllMemberData === 'function') {
-            try { refreshAllMemberData(); refreshed = true; } catch (e) {}
-          }
-          if (typeof updateCharts === 'function' || typeof loadExpensesList === 'function') {
-            try {
-              if (typeof loadExpensesList === 'function') loadExpensesList();
-              if (typeof loadPaymentsList === 'function') loadPaymentsList();
-              if (typeof updateCharts === 'function') updateCharts();
-              if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
-              refreshed = true;
-            } catch (e) {}
-          }
-          if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') {
-            try { Member_dashboard_02_A_expenses_list_SET_DB(1); refreshed = true; } catch (e) {}
-          }
-          if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') {
-            try { Member_dashboard_03_A_funds_received_list_SET_DB(1); refreshed = true; } catch (e) {}
-          }
+          try {
+            // Member
+            if (typeof refreshAllMemberData === 'function') {
+              try { refreshAllMemberData(); refreshed = true; } catch (e) {}
+            }
+            if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') {
+              try { Member_dashboard_02_A_expenses_list_SET_DB(1); refreshed = true; } catch (e) {}
+            }
+            if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') {
+              try { Member_dashboard_03_A_funds_received_list_SET_DB(1); refreshed = true; } catch (e) {}
+            }
+            if (typeof member_dashboard_06_A_FETCH === 'function') {
+              try { member_dashboard_06_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+
+            // Cash Owner
+            if (typeof loadExpensesList === 'function') {
+              try { loadExpensesList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadPaymentsList === 'function') {
+              try { loadPaymentsList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadBankAccountsList === 'function') {
+              try { loadBankAccountsList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadCashAccountsList === 'function') {
+              try { loadCashAccountsList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadMembersList === 'function') {
+              try { loadMembersList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadCategoriesList === 'function') {
+              try { loadCategoriesList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadTopupHistoryList === 'function') {
+              try { loadTopupHistoryList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadAuditLogsList === 'function') {
+              try { loadAuditLogsList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadUserAuditLogsList === 'function') {
+              try { loadUserAuditLogsList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof loadManagersList === 'function') {
+              try { loadManagersList(); refreshed = true; } catch (e) {}
+            }
+            if (typeof updateCharts === 'function') {
+              try { updateCharts(); refreshed = true; } catch (e) {}
+            }
+            if (typeof renderSummaryKPIs === 'function') {
+              try { renderSummaryKPIs(); refreshed = true; } catch (e) {}
+            }
+            if (typeof cash_owner_dashboard_10_A_FETCH === 'function') {
+              try { cash_owner_dashboard_10_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof cash_owner_dashboard_11_A_FETCH === 'function') {
+              try { cash_owner_dashboard_11_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof cash_owner_dashboard_12_A_FETCH === 'function') {
+              try { cash_owner_dashboard_12_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof cash_owner_dashboard_13_A_FETCH === 'function') {
+              try { cash_owner_dashboard_13_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof cash_owner_dashboard_14_A_FETCH === 'function') {
+              try { cash_owner_dashboard_14_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+
+            // Manager
+            if (typeof manager_dashboard_01_A_FETCH === 'function') {
+              try { manager_dashboard_01_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof Manager_dashboard_01_A_dashboard_summary_SET_DB === 'function') {
+              try { Manager_dashboard_01_A_dashboard_summary_SET_DB(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_02_A_FETCH === 'function') {
+              try { manager_dashboard_02_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_03_A_FETCH === 'function') {
+              try { manager_dashboard_03_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_04_A_FETCH === 'function') {
+              try { manager_dashboard_04_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_04_D_FETCH === 'function') {
+              try { manager_dashboard_04_D_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_05_A_FETCH === 'function') {
+              try { manager_dashboard_05_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_06_A_FETCH === 'function') {
+              try { manager_dashboard_06_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof manager_dashboard_08_A_FETCH === 'function') {
+              try { manager_dashboard_08_A_FETCH(); refreshed = true; } catch (e) {}
+            }
+            if (typeof fetchManagerAssignedMembers === 'function') {
+              try { fetchManagerAssignedMembers(); refreshed = true; } catch (e) {}
+            }
+            if (typeof fetchManagerExpenses === 'function') {
+              try { fetchManagerExpenses(); refreshed = true; } catch (e) {}
+            }
+            if (typeof fetchManagerPayments === 'function') {
+              try { fetchManagerPayments(); refreshed = true; } catch (e) {}
+            }
+            if (typeof fetchManagerProfile === 'function') {
+              try { fetchManagerProfile(); refreshed = true; } catch (e) {}
+            }
+            if (typeof updateMgrSidebarBadges === 'function') {
+              try { updateMgrSidebarBadges(); refreshed = true; } catch (e) {}
+            }
+          } catch (e) {}
           return refreshed ? 'refreshed' : 'reload';
         })();
       ''');
@@ -1576,6 +1716,52 @@ class WebViewScreenState extends State<WebViewScreen>
     try {
       final res = await _controller.runJavaScriptReturningResult('''
         (function() {
+          function triggerDataRefresh() {
+            try {
+              // Member
+              if (typeof refreshAllMemberData === 'function') refreshAllMemberData();
+              if (typeof Member_dashboard_02_A_expenses_list_SET_DB === 'function') Member_dashboard_02_A_expenses_list_SET_DB(1);
+              if (typeof Member_dashboard_03_A_funds_received_list_SET_DB === 'function') Member_dashboard_03_A_funds_received_list_SET_DB(1);
+              if (typeof member_dashboard_06_A_FETCH === 'function') member_dashboard_06_A_FETCH();
+
+              // Cash Owner
+              if (typeof loadExpensesList === 'function') loadExpensesList();
+              if (typeof loadPaymentsList === 'function') loadPaymentsList();
+              if (typeof loadBankAccountsList === 'function') loadBankAccountsList();
+              if (typeof loadCashAccountsList === 'function') loadCashAccountsList();
+              if (typeof loadMembersList === 'function') loadMembersList();
+              if (typeof loadCategoriesList === 'function') loadCategoriesList();
+              if (typeof loadTopupHistoryList === 'function') loadTopupHistoryList();
+              if (typeof loadAuditLogsList === 'function') loadAuditLogsList();
+              if (typeof loadUserAuditLogsList === 'function') loadUserAuditLogsList();
+              if (typeof loadManagersList === 'function') loadManagersList();
+              if (typeof renderSummaryKPIs === 'function') renderSummaryKPIs();
+              if (typeof updateCharts === 'function') updateCharts();
+              if (typeof cash_owner_dashboard_10_A_FETCH === 'function') cash_owner_dashboard_10_A_FETCH();
+              if (typeof cash_owner_dashboard_11_A_FETCH === 'function') cash_owner_dashboard_11_A_FETCH();
+              if (typeof cash_owner_dashboard_12_A_FETCH === 'function') cash_owner_dashboard_12_A_FETCH();
+              if (typeof cash_owner_dashboard_13_A_FETCH === 'function') cash_owner_dashboard_13_A_FETCH();
+              if (typeof cash_owner_dashboard_14_A_FETCH === 'function') cash_owner_dashboard_14_A_FETCH();
+
+              // Manager
+              if (typeof manager_dashboard_01_A_FETCH === 'function') manager_dashboard_01_A_FETCH();
+              if (typeof Manager_dashboard_01_A_dashboard_summary_SET_DB === 'function') Manager_dashboard_01_A_dashboard_summary_SET_DB();
+              if (typeof manager_dashboard_02_A_FETCH === 'function') manager_dashboard_02_A_FETCH();
+              if (typeof manager_dashboard_03_A_FETCH === 'function') manager_dashboard_03_A_FETCH();
+              if (typeof manager_dashboard_04_A_FETCH === 'function') manager_dashboard_04_A_FETCH();
+              if (typeof manager_dashboard_04_D_FETCH === 'function') manager_dashboard_04_D_FETCH();
+              if (typeof manager_dashboard_05_A_FETCH === 'function') manager_dashboard_05_A_FETCH();
+              if (typeof manager_dashboard_06_A_FETCH === 'function') manager_dashboard_06_A_FETCH();
+              if (typeof manager_dashboard_08_A_FETCH === 'function') manager_dashboard_08_A_FETCH();
+              if (typeof fetchManagerAssignedMembers === 'function') fetchManagerAssignedMembers();
+              if (typeof fetchManagerExpenses === 'function') fetchManagerExpenses();
+              if (typeof fetchManagerPayments === 'function') fetchManagerPayments();
+              if (typeof fetchManagerProfile === 'function') fetchManagerProfile();
+              if (typeof updateMgrSidebarBadges === 'function') updateMgrSidebarBadges();
+            } catch(e) {}
+          }
+
+          // Modals
           var b14 = document.getElementById("Cash_owner_dashboard_14_B");
           if (b14 && b14.style.display !== "none") {
             if (typeof Cash_owner_dashboard_14_B_add_notification_close === 'function') {
@@ -1583,15 +1769,6 @@ class WebViewScreenState extends State<WebViewScreen>
               return 'handled';
             }
           }
-          var a14 = document.getElementById("Cash_owner_dashboard_14_A");
-          if (a14 && a14.style.display !== "none") {
-            if (typeof cash_owner_dashboard_01_A_OPEN === 'function') {
-              cash_owner_dashboard_01_A_OPEN();
-              return 'handled';
-            }
-          }
-
-          // Manager modals & subpanels back handling
           var mSend = document.getElementById("mgrSendPaymentModal");
           if (mSend && mSend.style.display !== "none") {
             if (typeof Manager_dashboard_04_B_send_payment_close === 'function') {
@@ -1613,6 +1790,49 @@ class WebViewScreenState extends State<WebViewScreen>
               return 'handled';
             }
           }
+
+          // Generic modal overlays
+          var openModals = document.querySelectorAll('.modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"], [id\$="Modal"][style*="display: flex"], [id\$="Modal"][style*="display: block"]');
+          for (var om = 0; om < openModals.length; om++) {
+            var mEl = openModals[om];
+            if (mEl && mEl.style.display !== 'none') {
+              if (typeof closeModal === 'function' && mEl.id) {
+                closeModal(mEl.id);
+                return 'handled';
+              }
+              mEl.style.display = 'none';
+              return 'handled';
+            }
+          }
+
+          //Cash Owner subpanels back handling
+          var coSubpanels = [
+            'Cash_owner_dashboard_02_A', 'Cash_owner_dashboard_02_B', 'Cash_owner_dashboard_02_C', 'Cash_owner_dashboard_02_D',
+            'Cash_owner_dashboard_03_A', 'Cash_owner_dashboard_03_B', 'Cash_owner_dashboard_03_C',
+            'Cash_owner_dashboard_04_A', 'Cash_owner_dashboard_04_B', 'Cash_owner_dashboard_04_C', 'Cash_owner_dashboard_04_E',
+            'Cash_owner_dashboard_05_A', 'Cash_owner_dashboard_05_B',
+            'Cash_owner_dashboard_06_A', 'Cash_owner_dashboard_06_B',
+            'Cash_owner_dashboard_07_A', 'Cash_owner_dashboard_07_B', 'Cash_owner_dashboard_07_C',
+            'Cash_owner_dashboard_08_A',
+            'Cash_owner_dashboard_09_A', 'Cash_owner_dashboard_09_B', 'Cash_owner_dashboard_09_C',
+            'Cash_owner_dashboard_10_A', 'Cash_owner_dashboard_10_B',
+            'Cash_owner_dashboard_11_A', 'Cash_owner_dashboard_11_B',
+            'Cash_owner_dashboard_12_A',
+            'Cash_owner_dashboard_13_A', 'Cash_owner_dashboard_13_B', 'Cash_owner_dashboard_13_C', 'Cash_owner_dashboard_13_E', 'Cash_owner_dashboard_13_F',
+            'Cash_owner_dashboard_14_A'
+          ];
+          for (var ci = 0; ci < coSubpanels.length; ci++) {
+            var cp = document.getElementById(coSubpanels[ci]);
+            if (cp && cp.style.display !== 'none') {
+              if (typeof cash_owner_dashboard_01_A_OPEN === 'function') {
+                cash_owner_dashboard_01_A_OPEN();
+                triggerDataRefresh();
+                return 'handled';
+              }
+            }
+          }
+
+          // Manager subpanels back handling
           var mgrSubpanels = [
             'Manager_dashboard_02_A',
             'Manager_dashboard_03_A',
@@ -1628,14 +1848,41 @@ class WebViewScreenState extends State<WebViewScreen>
             if (mp && mp.style.display !== 'none') {
               if (typeof manager_dashboard_01_A_OPEN === 'function') {
                 manager_dashboard_01_A_OPEN();
+                triggerDataRefresh();
                 return 'handled';
               }
             }
           }
+
+          // Member subpanels back handling
+          var memSubpanels = [
+            'Member_dashboard_02_A',
+            'Member_dashboard_03_A',
+            'Member_dashboard_04_A',
+            'Member_dashboard_05_A',
+            'Member_dashboard_06_A'
+          ];
+          for (var memI = 0; memI < memSubpanels.length; memI++) {
+            var memP = document.getElementById(memSubpanels[memI]);
+            if (memP && memP.style.display !== 'none') {
+              if (typeof member_dashboard_01_A_OPEN === 'function') {
+                member_dashboard_01_A_OPEN();
+                triggerDataRefresh();
+                return 'handled';
+              }
+            }
+          }
+
           return 'unhandled';
         })()
       ''');
       if (res.toString().contains('handled')) {
+        if (mounted) {
+          setState(() => _isLoading = true);
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) setState(() => _isLoading = false);
+          });
+        }
         return true;
       }
     } catch (_) {}
